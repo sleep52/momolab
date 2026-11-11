@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FBF3E4">
+  <meta name="description" content="Momolab · 为一只宠物定制的互动冒险世界">
+  <title>Momolab · 眉姐姐的专属世界</title>
+  <link rel="icon" href="assets/img/ui/favicon.svg" type="image/svg+xml">
+  <link rel="preload" as="image" href="assets/img/scenes/keyart-opening.jpg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ===== 开场 ===== -->
+  <section id="opening" class="screen opening" aria-hidden="true">
+    <div id="opKeyArt" class="op-art"></div>
+    <div class="op-veil"></div>
+    <div class="op-inner">
+      <div class="op-brand">
+        <span id="opGameName" class="op-mark">Momolab</span>
+        <span id="opCredit" class="op-credit"></span>
+      </div>
+
+      <div class="op-hero">
+        <img id="opPet" class="op-pet" src="assets/pets/pet001/avatar.png" alt="宠物主角">
+      </div>
+
+      <div class="op-copy">
+        <h1 id="opSubtitle"></h1>
+        <p id="opDesc"></p>
+        <p id="opTagline" class="op-tag"></p>
+      </div>
+
+      <div class="op-acts">
+        <button id="opStart" class="btn primary big">开始游戏</button>
+        <button id="opContinue" class="btn ghost big">继续游戏</button>
+      </div>
+      <p class="op-hint">手机与电脑都适配 · 进度自动保存在本机</p>
+    </div>
+    <button id="opSound" class="op-sound icon-btn" aria-label="声音开关" data-icon="sound"></button>
+  </section>
+
+  <!-- ===== 世界 ===== -->
+  <main id="worldScreen" class="screen world is-hidden">
+    <nav id="dock" class="dock" aria-label="主导航">
+      <div class="dock-group">
+        <button class="dock-btn" data-nav="world" aria-label="世界" data-icon="compass"><i>世界</i></button>
+        <button class="dock-btn" data-nav="games" aria-label="游戏" data-icon="grid"><i>游戏</i></button>
+        <button class="dock-btn" data-nav="tasks" aria-label="任务" data-icon="task"><i>任务</i></button>
+        <button class="dock-btn" data-nav="collection" aria-label="收藏" data-icon="gem"><i>收藏</i></button>
+        <button class="dock-btn" data-nav="album" aria-label="相册" data-icon="image"><i>相册</i></button>
+      </div>
+      <div class="dock-tail">
+        <button class="dock-btn" data-nav="settings" aria-label="设置" data-icon="gear"><i>设置</i></button>
+        <button id="dockSound" class="dock-btn" aria-label="声音开关" data-icon="sound"></button>
+      </div>
+    </nav>
+
+    <div class="stage-wrap">
+      <div id="stage" class="stage" data-area="home">
+        <div id="sceneBg" class="scene-bg"></div>
+        <div class="scene-vignette"></div>
+
+        <header class="topbar">
+          <button id="areaBtn" class="area-btn" data-open-areas>
+            <span class="area-txt">
+              <b id="areaName">宠物小屋</b>
+              <i id="areaSub">午后的光落在木地板上</i>
+            </span>
+            <span class="area-chev" data-icon="next"></span>
+          </button>
+        </header>
+
+        <div id="hotspots" class="hotspots"></div>
+
+        <div id="petWrap" class="pet-wrap">
+          <div class="pet-shadow"></div>
+          <img id="petActor" class="pet-actor" src="assets/pets/pet001/avatar.png" alt="眉姐姐">
+          <div id="petDeco" class="pet-deco" style="display:none"></div>
+          <div id="petSay" class="pet-say" role="status"></div>
+          <div id="fxLayer" class="fx-layer"></div>
+        </div>
+
+        <div id="areaMenu" class="area-menu" aria-hidden="true"></div>
+
+        <div class="actionbar" aria-label="互动">
+          <button class="act-btn" data-action="pet"><span class="act-ic" data-icon="paw"></span><i>摸摸</i></button>
+          <button class="act-btn" data-action="feed"><span class="act-ic" data-icon="feed"></span><i>喂食</i></button>
+          <button class="act-btn" data-action="play"><span class="act-ic" data-icon="toy"></span><i>陪玩</i></button>
+          <button class="act-btn" data-action="call"><span class="act-ic" data-icon="horn"></span><i>呼唤</i></button>
+          <button class="act-btn" data-action="rest"><span class="act-ic" data-icon="rest"></span><i>休息</i></button>
+          <button class="act-btn" data-action="photo"><span class="act-ic" data-icon="camera"></span><i>拍照</i></button>
+        </div>
+
+        <div id="flash" class="flash"></div>
+      </div>
+    </div>
+
+    <aside id="hud" class="hud" aria-label="宠物状态"></aside>
+  </main>
+
+  <!-- ===== 内容面板 ===== -->
+  <section id="panelLayer" class="panel-layer" aria-hidden="true">
+    <div id="panel" class="panel" role="dialog" aria-modal="true"></div>
+  </section>
+
+  <!-- ===== 选择抽屉 ===== -->
+  <section id="sheetLayer" class="sheet-layer" aria-hidden="true">
+    <div id="sheet" class="sheet" role="dialog" aria-modal="true"></div>
+  </section>
+
+  <!-- ===== 小游戏 ===== -->
+  <section id="playModal" class="play-modal" aria-hidden="true">
+    <div class="play-shell">
+      <header class="play-head">
+        <div class="play-titles">
+          <h2 id="playTitle"></h2>
+          <p id="playSub"></p>
+        </div>
+        <div id="playHud" class="play-hud"></div>
+        <button id="playQuit" class="icon-btn" aria-label="退出小游戏" data-icon="close"></button>
+      </header>
+      <div id="playStage" class="play-stage"></div>
+      <div id="playFoot" class="play-foot"></div>
+    </div>
+  </section>
+
+  <!-- ===== 首次引导 ===== -->
+  <section id="intro" class="intro" aria-hidden="true">
+    <div class="intro-card">
+      <span id="introStep" class="intro-step"></span>
+      <h2 id="introTitle"></h2>
+      <p id="introText"></p>
+      <div id="introDots" class="intro-dots"></div>
+      <div class="intro-acts">
+        <button id="introSkip" class="btn ghost">跳过</button>
+        <button id="introNext" class="btn primary">下一步</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
+
+  <script src="assets/config/game-config.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/pet.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/interact.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/album.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/dressup.js"></script>
+  <script src="js/quiz.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
