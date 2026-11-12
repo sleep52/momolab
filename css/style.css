@@ -256,23 +256,33 @@ h1, h2, h3, h4, p { margin: 0; }
 .pet-wrap.is-dragging {
   transition: none; cursor: grabbing; z-index: 6;
 }
-.pet-wrap.is-dragging .pet-actor {
+.pet-wrap.is-dragging .pet-figure {
   animation: none; transform: scale(1.05) rotate(-2deg);
   filter: drop-shadow(0 18px 26px rgba(24, 15, 8, .42));
 }
 .pet-wrap.is-dragging .pet-shadow { animation: none; opacity: .5; transform: translateX(-50%) scale(.86); }
-.pet-wrap.is-drop .pet-actor { animation: settle-drop .5s cubic-bezier(.3, .8, .3, 1); }
+.pet-wrap.is-drop .pet-figure { animation: settle-drop .5s cubic-bezier(.3, .8, .3, 1); }
 @keyframes settle-drop {
   0% { transform: scale(1.06, .92); }
   45% { transform: scale(.96, 1.06); }
   100% { transform: scale(1, 1); }
 }
 .pet-actor {
-  position: relative; z-index: 2; width: 100%; height: 100%; object-fit: contain;
-  transform-origin: 50% 92%;
-  animation: breathe 5.2s ease-in-out infinite;
+  position: absolute; left: 0; top: 0; z-index: 1;
+  width: 100%; height: 100%; object-fit: contain;
   filter: drop-shadow(0 10px 18px rgba(24, 15, 8, .32));
   transition: opacity .18s ease;
+}
+/* 立绘分三层叠：身体 → 颈部/身体装饰 → 头部 → 头部装饰。
+   头部是一张同坐标的裁切图，盖住围巾上缘，看起来才是“戴/围”在脖子上。 */
+.pet-figure {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  transform-origin: 50% 92%;
+  animation: breathe 5.2s ease-in-out infinite;
+}
+.pet-head {
+  position: absolute; left: 0; top: 0; z-index: 3;
+  width: 100%; height: auto; pointer-events: none;
 }
 @keyframes breathe {
   0%, 100% { transform: translateY(0) scale(1, 1); }
@@ -344,7 +354,7 @@ h1, h2, h3, h4, p { margin: 0; }
 /* 动作 */
 .expr-swap { animation: expr-fade .22s ease; }
 @keyframes expr-fade { from { opacity: .35; transform: translateY(1px); } to { opacity: 1; } }
-.pet-wrap.act-happy .pet-actor { animation: hop 1.5s cubic-bezier(.3, .8, .3, 1); }
+.pet-wrap.act-happy .pet-figure { animation: hop 1.5s cubic-bezier(.3, .8, .3, 1); }
 @keyframes hop {
   0%, 100% { transform: translateY(0) scale(1); }
   18% { transform: translateY(-16px) scale(1.02, .98); }
@@ -352,7 +362,7 @@ h1, h2, h3, h4, p { margin: 0; }
   54% { transform: translateY(-9px) scale(1.01, .99); }
   72% { transform: translateY(0) scale(1); }
 }
-.pet-wrap.act-eat .pet-actor { animation: eat 2.4s ease-in-out; }
+.pet-wrap.act-eat .pet-figure { animation: eat 2.4s ease-in-out; }
 @keyframes eat {
   0%, 100% { transform: translateY(0) rotate(0); }
   12% { transform: translateY(6px) rotate(-4deg); }
@@ -361,7 +371,7 @@ h1, h2, h3, h4, p { margin: 0; }
   60% { transform: translateY(9px) rotate(-5deg) scaleY(.97); }
   78% { transform: translateY(3px) rotate(-2deg); }
 }
-.pet-wrap.act-play .pet-actor { animation: pounce 2.9s cubic-bezier(.3, .7, .3, 1); }
+.pet-wrap.act-play .pet-figure { animation: pounce 2.9s cubic-bezier(.3, .7, .3, 1); }
 @keyframes pounce {
   0%, 100% { transform: translate(0, 0) rotate(0) scale(1); }
   15% { transform: translate(-8%, 4px) rotate(-6deg) scale(.96, 1.02); }
@@ -369,20 +379,20 @@ h1, h2, h3, h4, p { margin: 0; }
   52% { transform: translate(-4%, 2px) rotate(-3deg); }
   70% { transform: translate(5%, -10px) rotate(4deg); }
 }
-.pet-wrap.act-sleep .pet-actor, .pet-wrap.act-rest .pet-actor { animation: settle 4s ease-in-out; transform-origin: 50% 100%; }
+.pet-wrap.act-sleep .pet-figure, .pet-wrap.act-rest .pet-figure { animation: settle 4s ease-in-out; transform-origin: 50% 100%; }
 @keyframes settle {
   0% { transform: translateY(0) scale(1, 1); }
   22% { transform: translateY(10px) scale(1.02, .96); }
   100% { transform: translateY(12px) scale(1.03, .95); }
 }
-.pet-wrap.act-call .pet-actor { animation: call-hop 1.6s cubic-bezier(.3, .8, .3, 1); }
+.pet-wrap.act-call .pet-figure { animation: call-hop 1.6s cubic-bezier(.3, .8, .3, 1); }
 @keyframes call-hop {
   0%, 100% { transform: translateY(0) rotate(0); }
   30% { transform: translateY(-12px) rotate(-3deg); }
   55% { transform: translateY(0) rotate(2deg); }
   75% { transform: translateY(-5px) rotate(-1deg); }
 }
-.pet-wrap.act-walk .pet-actor { animation: walk 1.4s ease-in-out; }
+.pet-wrap.act-walk .pet-figure { animation: walk 1.4s ease-in-out; }
 @keyframes walk {
   0%, 100% { transform: translateY(0) rotate(0); }
   20% { transform: translateY(-8px) rotate(-2deg); }
@@ -390,13 +400,13 @@ h1, h2, h3, h4, p { margin: 0; }
   60% { transform: translateY(-8px) rotate(2deg); }
   80% { transform: translateY(0); }
 }
-.pet-wrap.act-shy .pet-actor { animation: shy 1.6s ease-in-out; }
+.pet-wrap.act-shy .pet-figure { animation: shy 1.6s ease-in-out; }
 @keyframes shy {
   0%, 100% { transform: rotate(0) translateY(0); }
   35% { transform: rotate(-5deg) translateY(4px); }
   65% { transform: rotate(4deg) translateY(2px); }
 }
-.pet-wrap.act-breathe .pet-actor { animation: breathe 5.2s ease-in-out infinite; }
+.pet-wrap.act-breathe .pet-figure { animation: breathe 5.2s ease-in-out infinite; }
 
 /* ---------- 互动按钮 ---------- */
 .actionbar {
@@ -1020,7 +1030,7 @@ h1, h2, h3, h4, p { margin: 0; }
 body.low-fx .scene-vignette { }
 body.low-fx .hs-ring, body.low-fx .snack-halo, body.low-fx .tr-ring { animation: none; opacity: .4; }
 body.low-fx .fx-layer { display: none; }
-body.low-fx .pet-actor, body.low-fx .pet-shadow { animation: none; }
+body.low-fx .pet-figure, body.low-fx .pet-shadow { animation: none; }
 body.low-fx .op-art { animation: none; transform: scale(1.04); }
 body.low-fx .op-pet { animation: none; }
 
@@ -1046,15 +1056,19 @@ body.low-fx .op-pet { animation: none; }
  * ============================================================ */
 
 /* ---------- 装饰层：三件同时戴 ---------- */
+/* 脖子/身上的东西在下层（2），头部（3），帽子眼镜这类在上层（4） */
 .pet-deco {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-  z-index: 3; pointer-events: none; display: none;
+  z-index: 2; pointer-events: none; display: none;
   transform: none;
 }
+.pet-deco-top { z-index: 4; }
 .pet-deco-item {
   position: absolute; height: auto;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0 3px 6px rgba(20, 12, 6, .25));
+  /* 接触阴影：让装饰压进毛里，而不是飘在毛上 */
+  filter: drop-shadow(0 4px 5px rgba(20, 12, 6, .3)) drop-shadow(0 1px 2px rgba(20, 12, 6, .22));
+  transition: transform .2s ease;
 }
 
 /* ---------- 小游戏中心里的两个入口 ---------- */
@@ -1086,6 +1100,7 @@ body.low-fx .op-pet { animation: none; }
 .dw-shadow { position: absolute; left: 50%; bottom: 6%; width: 58%; height: 8%; transform: translateX(-50%);
   border-radius: 50%; background: radial-gradient(ellipse, rgba(28, 18, 10, .32), rgba(28, 18, 10, 0) 72%); }
 .dw-cat { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.dw-cat.dw-head { inset: 0 0 auto 0; height: auto; }
 .dw-item { position: absolute; transform: translate(-50%, -50%); height: auto; pointer-events: none; }
 .dw-tip { position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;
   font-size: 10px; color: rgba(59, 50, 38, .55); }

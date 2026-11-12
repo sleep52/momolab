@@ -218,6 +218,8 @@
     M.pet.init({
       actor: $("petActor"),
       deco: $("petDeco"),
+      decoTop: $("petDecoTop"),
+      head: $("petHead"),
       say: $("petSay"),
       fx: $("fxLayer"),
       wrap: $("petWrap")

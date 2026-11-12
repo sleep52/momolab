@@ -25,8 +25,9 @@
   function mood() { return M.mood ? M.mood() : null; }
 
   function moodSprite() {
+    // 换装间里她要显得开心：心情是“雀跃”时笑得更开，其余一律用开心脸
     const m = mood();
-    const key = m && MOOD_EXPR[m.key] ? MOOD_EXPR[m.key] : "happy";
+    const key = m && m.key === "cheerful" ? "laugh" : "happy";
     const A = C.petCharacterAssets;
     const file = (A.states && A.states[key]) || A.states.happy || A.states.idle;
     return A.basePath + file;
@@ -34,17 +35,29 @@
 
   function overlayStyle(def) {
     const o = def.overlay || {};
-    const rot = o.rot ? ` transform:translate(-50%,-50%) rotate(${o.rot}deg);` : "";
-    return `left:${o.x || 50}%;top:${o.y || 70}%;width:${o.w || 30}%;${rot}`;
+    const rot = o.rot || 0;
+    const rx = def.slot === "head" ? 6 : 8;
+    return `left:${o.x || 50}%;top:${o.y || 70}%;width:${o.w || 30}%;` +
+      `transform:translate(-50%,-50%) rotate(${rot}deg) perspective(520px) rotateX(${rx}deg);`;
   }
 
   function previewLayer() {
     const eq = M.equippedList();
-    const imgs = eq.map((it) => `<img class="dw-item" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
+    const sprite = moodSprite();
+    const headUrl = sprite
+      .replace(/\.png$/i, "__head.png")
+      .replace(/\/([^/]+__head\.png)$/, "/layers/$1");
+    const headImg = `<img class="dw-cat dw-head" src="${headUrl}" alt="">`;
+    const low = eq.filter((it) => it.def.slot !== "head")
+      .map((it) => `<img class="dw-item" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
+    const top = eq.filter((it) => it.def.slot === "head")
+      .map((it) => `<img class="dw-item" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
     return `<div class="dw-stage">
       <div class="dw-shadow"></div>
-      <img class="dw-cat" src="${moodSprite()}" alt="${C.petName}">
-      ${imgs}
+      <img class="dw-cat" src="${sprite}" alt="${C.petName}">
+      ${low}
+      ${headImg}
+      ${top}
       <span class="dw-tip">${eq.length ? "现在身上的搭配" : "把衣服拖到她身上试试"}</span>
     </div>`;
   }

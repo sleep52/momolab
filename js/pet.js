@@ -9,7 +9,7 @@
   const A = C.petCharacterAssets;
 
   const exprCache = {};
-  let actor, decoEl, sayEl, fxF, wrap;
+  let actor, decoEl, decoTopEl, headEl, sayEl, fxF, wrap;
   let exprToken = 0, actToken = 0, sayTimer = null, idleTimer = null;
   let currentExpr = "idle";
   let dragBlock = false, stageEl = null;
@@ -17,6 +17,12 @@
   function src(name) {
     const file = (A.states && A.states[name]) || A.states.idle;
     return A.basePath + file;
+  }
+
+  // 头部裁切图：与立绘同坐标，盖在颈部装饰上，让围巾“塞进”下巴下面
+  function headSrc(name) {
+    const file = (A.states && A.states[name]) || A.states.idle;
+    return A.basePath + "layers/" + file.replace(/\.png$/i, "") + "__head.png";
   }
 
   function preload() {
@@ -41,6 +47,7 @@
     currentExpr = real;
     actor.classList.add("expr-swap");
     actor.src = src(real);
+    if (headEl) headEl.src = headSrc(real);
     setTimeout(() => actor && actor.classList.remove("expr-swap"), 220);
     if (holdMs) {
       setTimeout(() => {
@@ -116,6 +123,8 @@
     if (!decoEl) return;
     const list = (M.equippedList ? M.equippedList() : []);
     decoEl.innerHTML = "";
+    if (decoTopEl) decoTopEl.innerHTML = "";
+    let low = 0, top = 0;
     list.forEach((it) => {
       const def = it.def;
       if (!def || !def.img || !def.overlay) return;
@@ -126,11 +135,19 @@
       img.style.left = def.overlay.x + "%";
       img.style.top = def.overlay.y + "%";
       img.style.width = def.overlay.w + "%";
-      if (def.overlay.rot) img.style.transform = `translate(-50%,-50%) rotate(${def.overlay.rot}deg)`;
-      img.style.zIndex = String(3 + (def.cat === "deco" ? 1 : 0));
-      decoEl.appendChild(img);
+      const rot = def.overlay.rot || 0;
+      img.style.transform = `translate(-50%,-50%) rotate(${rot}deg) perspective(520px) rotateX(${def.slot === "head" ? 6 : 8}deg)`;
+      // 头部装饰要盖在头皮上；颈部 / 身体装饰夹在身体和头之间
+      if (def.slot === "head" && decoTopEl) {
+        img.style.zIndex = String(6 + ++top);
+        decoTopEl.appendChild(img);
+      } else {
+        img.style.zIndex = String(1 + ++low);
+        decoEl.appendChild(img);
+      }
     });
-    decoEl.style.display = list.length ? "block" : "none";
+    decoEl.style.display = low ? "block" : "none";
+    if (decoTopEl) decoTopEl.style.display = top ? "block" : "none";
   }
 
   function equipToggle(id) {
@@ -311,8 +328,10 @@
 
   M.pet = {
     init(refs) {
-      actor = refs.actor; decoEl = refs.deco; sayEl = refs.say; fxF = refs.fx; wrap = refs.wrap;
+      actor = refs.actor; decoEl = refs.deco; decoTopEl = refs.decoTop; headEl = refs.head;
+      sayEl = refs.say; fxF = refs.fx; wrap = refs.wrap;
       preload();
+      if (headEl) headEl.src = headSrc(currentExpr);
       refreshDeco();
       restorePos();
       setupDrag();

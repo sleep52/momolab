@@ -87,7 +87,7 @@ tools/devserver.py          本地服务（禁用缓存，改配置即时生效�
 - 相册写入受 localStorage 容量限制，只保留最近 12 张。
 - 拍照导出需要 `http://` 环境（`启动游戏.bat` 已经处理）；`file://` 下会提示改用本地服务。
 - 角色动作为「统一机位立绘 + 程序化动作」，如需逐帧行走序列，把 `petCharacterAssets.states` 换成帧数组即可。
-- 装饰是叠图：落点在 `game-config.js` 每件物品的 `overlay`（x/y/w 都是相对猫立绘的百分比），换姿势或换猫要重新校准一次。
+- 装饰分三层叠：身体 → 颈部/身体装饰 → 头部裁切层 → 头部装饰。头部裁切图在 `assets/pets/pet001/layers/`，由 `tools/split_pet_head.py` 生成，所以围巾上缘会被下巴压住。`n- 装饰贴图用 `tools/fit_garments.py` 预处理过（`*_fit.png`）：贝雷帽原图自带猫耳朵，脚本按帽体轮廓切掉，只留帽壳；所有贴图边缘都烘了一圈 AO 暗边。`n- 落点在 `game-config.js` 每件物品的 `overlay`（x/y/w 相对猫立绘的百分比），换姿势或换猫要重新校准一次。
 - 浏览器会缓存 `game-config.js`，改了配置看不到变化时用 `python tools/devserver.py` 起服务（带 `no-store`），再普通刷新即可。
 
 ## 这一版新加的东西
