@@ -9,6 +9,8 @@
   const icon = (n) => window.MOMO_ICONS[n] || "";
 
   let activeSlot = "head";
+  let fitTarget = null;
+  let liveStage = null;
 
   const MOOD_EXPR = {
     cheerful: "laugh",
@@ -33,12 +35,31 @@
     return A.basePath + file;
   }
 
-  function overlayStyle(def) {
+  // 一件装饰的最终落点 = 配置里的默认 overlay + 用户自己调过的位移/缩放/角度
+  function fitOf(def) {
     const o = def.overlay || {};
-    const rot = o.rot || 0;
-    const rx = def.slot === "head" ? 6 : 8;
-    return `left:${o.x || 50}%;top:${o.y || 70}%;width:${o.w || 30}%;` +
-      `transform:translate(-50%,-50%) rotate(${rot}deg) perspective(520px) rotateX(${rx}deg);`;
+    const off = (M.state.decoPos || {})[def.id] || {};
+    return {
+      x: (o.x || 50) + (off.dx || 0),
+      y: (o.y || 70) + (off.dy || 0),
+      w: (o.w || 30) * ((off.s || 100) / 100),
+      rot: (off.rot === undefined ? (o.rot || 0) : off.rot),
+      slot: def.slot
+    };
+  }
+
+  function fitSave(id, patch) {
+    M.state.decoPos = M.state.decoPos || {};
+    const cur = Object.assign({ dx: 0, dy: 0, s: 100 }, M.state.decoPos[id] || {});
+    M.state.decoPos[id] = Object.assign(cur, patch);
+    return M.state.decoPos[id];
+  }
+
+  function overlayStyle(def) {
+    const f = fitOf(def);
+    const rx = f.slot === "head" ? 6 : 8;
+    return `left:${f.x}%;top:${f.y}%;width:${f.w}%;` +
+      `transform:translate(-50%,-50%) rotate(${f.rot}deg) perspective(520px) rotateX(${rx}deg);`;
   }
 
   function previewLayer() {
@@ -49,16 +70,37 @@
       .replace(/\/([^/]+__head\.png)$/, "/layers/$1");
     const headImg = `<img class="dw-cat dw-head" src="${headUrl}" alt="">`;
     const low = eq.filter((it) => it.def.slot !== "head")
-      .map((it) => `<img class="dw-item" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
+      .map((it) => `<img class="dw-item" data-id="${it.def.id}" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
     const top = eq.filter((it) => it.def.slot === "head")
-      .map((it) => `<img class="dw-item" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
+      .map((it) => `<img class="dw-item" data-id="${it.def.id}" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
     return `<div class="dw-stage">
       <div class="dw-shadow"></div>
       <img class="dw-cat" src="${sprite}" alt="${C.petName}">
       ${low}
       ${headImg}
       ${top}
-      <span class="dw-tip">${eq.length ? "现在身上的搭配" : "把衣服拖到她身上试试"}</span>
+      <span class="dw-tip">${eq.length ? "按住衣服就能拖，帽子围巾都能挪" : "把衣服拖到她身上试试"}</span>
+    </div>`;
+  }
+
+  // 微调条：选一件已穿的，拖 / 滑到合适的位置
+  function fitBar() {
+    const eq = M.equippedList();
+    if (!eq.length) return "";
+    if (!fitTarget || !eq.some((it) => it.def.id === fitTarget)) fitTarget = eq[0].def.id;
+    const def = M.itemDef(fitTarget);
+    if (!def) return "";
+    const off = (M.state.decoPos || {})[fitTarget] || {};
+    return `<div class="dw-fit">
+      <div class="df-head"><b>手动微调</b><span>拖左边小猫身上的衣服，或滑条</span></div>
+      <div class="df-chips">
+        ${eq.map((it) => `<button class="df-chip ${it.def.id === fitTarget ? "is-on" : ""}" data-fit="${it.def.id}">${it.def.name}</button>`).join("")}
+      </div>
+      <label class="df-row"><i>左右</i><input type="range" data-k="dx" min="-30" max="30" step="0.5" value="${off.dx || 0}"><em>${off.dx || 0}</em></label>
+      <label class="df-row"><i>上下</i><input type="range" data-k="dy" min="-30" max="30" step="0.5" value="${off.dy || 0}"><em>${off.dy || 0}</em></label>
+      <label class="df-row"><i>大小</i><input type="range" data-k="s" min="60" max="200" step="2" value="${off.s || 100}"><em>${off.s || 100}%</em></label>
+      <label class="df-row"><i>角度</i><input type="range" data-k="rot" min="-30" max="30" step="1" value="${off.rot === undefined ? (def.overlay.rot || 0) : off.rot}"><em>${off.rot === undefined ? (def.overlay.rot || 0) : off.rot}°</em></label>
+      <button class="btn small ghost df-reset" data-reset>还原这一件</button>
     </div>`;
   }
 
@@ -108,6 +150,78 @@
     if (!already) afterWear(def);
     else { M.toast("这件已经穿在身上了"); M.audio.sfx("tap"); }
     wardrobe();
+  }
+
+  function bindFit(el) {
+    const stage = el.querySelector(".dw-stage");
+    const restyle = (id) => {
+      const def = M.itemDef(id);
+      const img = el.querySelector('.dw-item[data-id="' + id + '"]');
+      if (def && img) img.setAttribute("style", overlayStyle(def));
+      M.pet.refreshDeco();
+    };
+
+    el.querySelectorAll("[data-fit]").forEach((b) => {
+      b.addEventListener("click", () => { fitTarget = b.getAttribute("data-fit"); wardrobe(); });
+    });
+
+    el.querySelectorAll(".df-row input").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const k = inp.getAttribute("data-k");
+        const v = Number(inp.value);
+        fitSave(fitTarget, { [k]: v });
+        const em = inp.parentElement.querySelector("em");
+        if (em) em.textContent = k === "s" ? v + "%" : k === "rot" ? v + "°" : v;
+        restyle(fitTarget);
+        M.save();
+      });
+    });
+
+    const reset = el.querySelector("[data-reset]");
+    if (reset) reset.addEventListener("click", () => {
+      if (M.state.decoPos) delete M.state.decoPos[fitTarget];
+      M.save();
+      M.pet.refreshDeco();
+      wardrobe();
+    });
+
+    // 预览里直接拖衣服：按住哪件就调哪件
+    if (!stage) return;
+    el.querySelectorAll(".dw-item").forEach((img) => {
+      const id = img.getAttribute("data-id");
+      if (!M.itemDef(id)) return;
+      img.style.pointerEvents = "auto";
+      img.style.cursor = "grab";
+      img.addEventListener("pointerdown", (ev) => {
+        if (ev.pointerType === "mouse" && ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        fitTarget = id;
+        const r = stage.getBoundingClientRect();
+        const off = (M.state.decoPos || {})[id] || {};
+        const dx0 = off.dx || 0, dy0 = off.dy || 0;
+        const x0 = ev.clientX, y0 = ev.clientY;
+        img.style.cursor = "grabbing";
+        try { img.setPointerCapture(ev.pointerId); } catch (err) {}
+        const mv = (e2) => {
+          fitSave(id, {
+            dx: Math.round((dx0 + ((e2.clientX - x0) / r.width) * 100) * 10) / 10,
+            dy: Math.round((dy0 + ((e2.clientY - y0) / r.height) * 100) * 10) / 10
+          });
+          restyle(id);
+        };
+        const up = () => {
+          img.removeEventListener("pointermove", mv);
+          img.removeEventListener("pointerup", up);
+          img.removeEventListener("pointercancel", up);
+          M.save();
+          wardrobe();
+        };
+        img.addEventListener("pointermove", mv);
+        img.addEventListener("pointerup", up);
+        img.addEventListener("pointercancel", up);
+      });
+    });
   }
 
   function bindDrag(el) {
@@ -201,6 +315,7 @@
               <button class="btn small primary" data-lucky>随机搭一套</button>
               <button class="btn small ghost" data-strip>全部摘下</button>
             </div>
+            ${fitBar()}
           </div>
         </div>
         <div class="section-title"><h3>${(slots.find((s) => s.id === activeSlot) || {}).label || ""}可选</h3><span>点一下试穿，或拖到小猫身上</span></div>
@@ -270,6 +385,7 @@
           M.audio.sfx("tap");
           wardrobe();
         });
+        bindFit(el);
         bindDrag(el);
       }
     });

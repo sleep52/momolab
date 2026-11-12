@@ -44,6 +44,7 @@
       discovered: discovered,
       equip: { deco: null, head: null, neck: null, body: null },
       petPos: null,               // { x, y } 百分比，主界面拖拽后的落点
+      decoPos: {},                 // { [itemId]: { dx, dy } } 手动挪衣服的偏移，百分比
       areas: areas,
       games: {},                  // { [gameId]: { best, plays, wins, completed } }
       quiz: { best: 0, plays: 0, last: 0 },

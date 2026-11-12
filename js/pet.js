@@ -132,11 +132,56 @@
       img.className = "pet-deco-item";
       img.src = def.img;
       img.alt = def.name;
-      img.style.left = def.overlay.x + "%";
-      img.style.top = def.overlay.y + "%";
-      img.style.width = def.overlay.w + "%";
-      const rot = def.overlay.rot || 0;
-      img.style.transform = `translate(-50%,-50%) rotate(${rot}deg) perspective(520px) rotateX(${def.slot === "head" ? 6 : 8}deg)`;
+      img.dataset.id = def.id;
+      const saved = (M.state.decoPos || {})[def.id] || { dx: 0, dy: 0 };
+      const rot = saved.rot === undefined ? (def.overlay.rot || 0) : saved.rot;
+      const apply = () => {
+        img.style.left = (def.overlay.x + (saved.dx || 0)) + "%";
+        img.style.top = (def.overlay.y + (saved.dy || 0)) + "%";
+        img.style.width = def.overlay.w * ((saved.s || 100) / 100) + "%";
+        img.style.transform = `translate(-50%,-50%) rotate(${rot}deg) perspective(520px) rotateX(${def.slot === "head" ? 6 : 8}deg)`;
+      };
+      apply();
+      img.style.pointerEvents = "auto";
+      img.style.cursor = "grab";
+      // 装饰自己也能拖：按住帽子/围巾直接摆到该在的位置
+      img.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const wr2 = wrap.getBoundingClientRect();
+        const x0 = e.clientX, y0 = e.clientY, dx0 = saved.dx || 0, dy0 = saved.dy || 0;
+        img.style.cursor = "grabbing";
+        img.style.zIndex = String(30);
+        let moved = false;
+        const mv = (ev) => {
+          const ddx = ((ev.clientX - x0) / wr2.width) * 100;
+          const ddy = ((ev.clientY - y0) / wr2.height) * 100;
+          if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 4) moved = true;
+          saved.dx = Math.round((dx0 + ddx) * 10) / 10;
+          saved.dy = Math.round((dy0 + ddy) * 10) / 10;
+          M.state.decoPos = M.state.decoPos || {};
+          M.state.decoPos[def.id] = saved;
+          apply();
+        };
+        const up = () => {
+          img.style.cursor = "grab";
+          if (top) img.style.zIndex = String(6 + top);
+          else img.style.zIndex = String(1 + low);
+          window.removeEventListener("pointermove", mv);
+          window.removeEventListener("pointerup", up);
+          if (moved) { M.save(); M.audio.sfx("tap"); say(def.name + "被她自己挪了挪，觉得这样更顺眼。"); }
+        };
+        window.addEventListener("pointermove", mv);
+        window.addEventListener("pointerup", up);
+      });
+      img.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        if (M.state.decoPos) delete M.state.decoPos[def.id];
+        M.save();
+        refreshDeco();
+        M.toast("「" + def.name + "」回到默认位置");
+      });
       // 头部装饰要盖在头皮上；颈部 / 身体装饰夹在身体和头之间
       if (def.slot === "head" && decoTopEl) {
         img.style.zIndex = String(6 + ++top);
