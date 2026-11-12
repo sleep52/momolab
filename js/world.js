@@ -164,7 +164,7 @@
           M.state.areas[id].__entryDone = true;
           M.addAttr({ explore: 4 });
         }
-        M.pet.walkTo(50, 760);
+        M.pet.action("walk", 760);
         M.pet.setExpr("excited", 1500);
         setTimeout(() => M.pet.say(pickLine(id) || area.intro, 4200), 420);
         M.emit("area", { id, area });

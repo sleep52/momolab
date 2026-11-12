@@ -43,10 +43,12 @@
       items: items,
       discovered: discovered,
       equip: { deco: null, head: null, neck: null, body: null },
+      petPos: null,               // { x, y } 百分比，主界面拖拽后的落点
       areas: areas,
       games: {},                  // { [gameId]: { best, plays, wins, completed } }
       quiz: { best: 0, plays: 0, last: 0 },
       daily: { date: "", counters: {}, seen: {} },
+      mood: { date: "", key: "", liked: [], rewarded: false },
       claimed: {},                // { [taskId]: true }
       settings: { music: true, sfx: true, quality: "auto" },
       seen: { intro: false, welcome: false },
@@ -95,6 +97,7 @@
       M.state = merged;
     }
     M.ensureDaily();
+    M.ensureMood();
     return M.state;
   };
 
@@ -113,6 +116,7 @@
 
   M.reset = function () {
     M.state = M.defaultState();
+    M.ensureMood();
     try { localStorage.removeItem(ALBUM_KEY); } catch (e) {}
     M.save(true);
     M.emit("reset");
@@ -207,6 +211,62 @@
 
   M.unlockedDeco = function () {
     return (C.items || []).filter((i) => i.cat === "deco" && M.state.discovered[i.id]);
+  };
+
+  /* ---------- 每日心情 ---------- */
+  function hashStr(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0);
+  }
+
+  M.moods = function () { return C.moods || []; };
+
+  /* 每天固定一次心情：同一天刷新页面也不会变，第二天自动换 */
+  M.ensureMood = function () {
+    const today = M.today();
+    const s = M.state;
+    if (!s.mood || s.mood.date !== today || !s.mood.key) {
+      const pool = M.moods();
+      if (!pool.length) return null;
+      const def = pool[hashStr(today) % pool.length];
+      // 今天偏爱的两件：优先推这个位置已拥有的，不够再从全部装饰里补
+      const owned = (C.items || []).filter((i) => i.cat === "deco" && (s.items[i.id] || 0) > 0);
+      const prefer = owned.filter((i) => (i.slot || "neck") === def.preferSlot);
+      const rest = owned.filter((i) => (i.slot || "neck") !== def.preferSlot);
+      const liked = prefer.concat(rest).slice(0, 2).map((i) => i.id);
+      s.mood = { date: today, key: def.key, liked: liked, rewarded: false };
+      M.save();
+    }
+    return s.mood;
+  };
+
+  M.mood = function () {
+    const m = M.ensureMood();
+    if (!m) return null;
+    const def = M.moods().find((x) => x.key === m.key) || M.moods()[0];
+    return { key: m.key, def: def, liked: (m.liked || []).filter((id) => M.itemDef(id)), rewarded: !!m.rewarded };
+  };
+
+  M.moodLikes = function (id) {
+    const m = M.mood();
+    return !!(m && m.liked.some((x) => x === id));
+  };
+
+  /* 今天穿了她喜欢的衣服：一天只奖励一次 */
+  M.checkMoodReward = function () {
+    const m = M.ensureMood();
+    if (!m || m.rewarded) return false;
+    const eq = M.equippedList();
+    const hit = eq.some((x) => m.liked.indexOf(x.def.id) >= 0);
+    if (!hit) return false;
+    m.rewarded = true;
+    const r = C.moodReward || { bond: 2, coins: 6 };
+    M.addAttr({ bond: r.bond || 2 });
+    M.addCoins(r.coins || 0);
+    M.save();
+    if (M.toast) M.toast(`穿到她今天喜欢的了 · 亲密 +${r.bond || 2}、星星 +${r.coins || 0}`, "gold");
+    return true;
   };
 
   /* ---------- 换装 ---------- */

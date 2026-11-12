@@ -58,7 +58,19 @@ window.MOMO_CONFIG = {
       scared: "scared.png",      // 飞机耳（小游戏失败用）
       focus: "focus.png",        // 瞳孔收窄，专注（寻宝 / 快跑用）
       yawn: "yawn.png",          // 打哈欠（刚睡醒用）
-      sleepy: "shy.png"          // 半眯眼发困（休息时用）
+      sleepy: "shy.png",         // 半眯眼发困（休息时用）
+      "eat-wait": "eat-wait.png",   // 等待投喂：抬头张嘴期待（无食物）
+      "eat-meow": "eat-meow.png",   // 轻声喵叫：小圆 o 嘴（呼唤用）
+      "eat-bite": "eat-bite.png",   // 小口咬鱼干（吃东西用）
+      "eat-chew": "eat-chew.png",   // 咀嚼中
+      "eat-swallow": "eat-swallow.png", // 大口吞
+      "eat-drink": "eat-drink.png", // 低头喝水
+      "eat-carry": "eat-carry.png", // 叼着战利品
+      "eat-lick": "eat-lick.png",   // 吃完舔嘴
+      "act-run": "act-run.png",     // 侧面飞奔（快跑用）
+      "act-jump": "act-jump.png",   // 起跳腾空
+      "act-land": "act-land.png",   // 落地缓冲
+      "act-bump": "act-bump.png"    // 撞到杂物
     }
   },
 
@@ -142,6 +154,7 @@ window.MOMO_CONFIG = {
         { id: "fish", label: "鱼群", x: 62, y: 70, type: "collect", item: "lake-fish", icon: "fish", speech: "水面下有一群小鱼，她把爪子伸进水里，捞了个空。" },
         { id: "lily", label: "睡莲", x: 34, y: 62, type: "collect", item: "plant-lily", icon: "flower", speech: "睡莲叶子上停着一颗亮亮的水珠。" },
         { id: "dock", label: "木码头", x: 16, y: 56, type: "minigame", target: "catch", icon: "timer", speech: "码头边很适合玩接东西的游戏。" },
+        { id: "rod", label: "钓竿", x: 28, y: 78, type: "minigame", target: "fish", icon: "fish", speech: "码头角落立着一根旧钓竿，她盯了很久。" },
         { id: "shell", label: "贝壳", x: 80, y: 50, type: "collect", item: "souvenir-shell", icon: "shell", speech: "沙里埋着一枚小小的贝壳，翻过来是珍珠色。" }
       ]
     },
@@ -152,7 +165,7 @@ window.MOMO_CONFIG = {
       icon: "gem",
       subtitle: "苔藓下面是会发光的石头",
       intro: "穿过石拱门，空气忽然变得很凉。水晶在岩壁上呼吸一样地亮着。",
-      unlock: { type: "allGames", count: 4, hint: "任意四款小游戏通关后解锁秘境世界" },
+      unlock: { type: "allGames", count: 5, hint: "任意五款小游戏通关后解锁秘境世界" },
       hotspots: [
         { id: "crystal", label: "记忆水晶", x: 22, y: 46, type: "collect", item: "hidden-crystal", icon: "gem", speech: "水晶里像封着一小段光，握久了掌心会变暖。" },
         { id: "altar", label: "石台", x: 50, y: 58, type: "collect", item: "secret-badge", icon: "star", speech: "石台上刻着爪印，中间嵌着一枚旧徽章。" },
@@ -202,12 +215,22 @@ window.MOMO_CONFIG = {
     {
       id: "run",
       name: "小猫快跑",
-      tagline: "别撞上花盆",
-      desc: "她一直在小路上往前跑。点屏幕跳起来，躲开花盆、接住小鱼干，跑得越远分越高。",
+      tagline: "三条跑道，一直往前冲",
+      desc: "左右滑或按方向键换跑道，上滑或空格起跳。躲开垃圾桶和扫帚，捡小鱼干攒连击。四条命，撞完就结束。",
       icon: "paw",
       accent: "sage",
       rewardItem: "toy-drop",
       target: 300
+    },
+    {
+      id: "fish",
+      name: "小猫钓鱼",
+      tagline: "等浮标沉下去的那一下",
+      desc: "先按力度条抛竿，越远鱼越大。浮标抖动时别急，沉下去的一瞬间收竿。钓满 5 条算通关。",
+      icon: "fish",
+      accent: "forest",
+      rewardItem: "food-fish",
+      target: 5
     }
   ],
 
@@ -235,6 +258,42 @@ window.MOMO_CONFIG = {
     ]
   },
 
+  /* ---------- 每日心情 ---------- */
+  /* 每天按日期固定抽一个心情；心情决定她今天偏爱哪个位置的装饰 */
+  moods: [
+    {
+      key: "cheerful", label: "元气满满", icon: "sun",
+      desc: "今天尾巴一直是翘着的，愿意配合你换任何东西。",
+      preferSlot: "head",
+      line: "今天她心情很好，你拿什么她都想试一下。"
+    },
+    {
+      key: "lazy", label: "慵懒", icon: "moon",
+      desc: "只想趴在有光的地方，软乎乎的衣服比较合她的意。",
+      preferSlot: "body",
+      line: "她伸了个很长的懒腰，然后就地躺下了。"
+    },
+    {
+      key: "clingy", label: "黏人", icon: "heart",
+      desc: "今天格外想贴着你，脖子上的东西她不会甩掉。",
+      preferSlot: "neck",
+      line: "今天她走两步就要回头看你一眼。"
+    },
+    {
+      key: "proud", label: "小傲娇", icon: "crown",
+      desc: "嘴上不承认，但戴上好看的帽子会偷偷照镜子。",
+      preferSlot: "head",
+      line: "她装作不在意，耳朵却一直朝着镜子。"
+    },
+    {
+      key: "curious", label: "好奇", icon: "compass",
+      desc: "什么都想闻一闻，穿什么都愿意试。",
+      preferSlot: "neck",
+      line: "今天她对所有东西都感兴趣，包括你的手。"
+    }
+  ],
+  moodReward: { bond: 2, coins: 6 },
+
   /* ---------- 物品 ---------- */
   items: [
     { id: "food-fish", name: "小鱼干", cat: "food", img: "assets/props/snack-fish.png", desc: "眉姐姐最爱的零食，袋子一响她就会出现。", source: "初始拥有 · 小游戏奖励", use: { happy: 10, vigor: 6 } },
@@ -248,11 +307,14 @@ window.MOMO_CONFIG = {
     { id: "toy-fish", name: "布偶鱼", cat: "toy", img: "assets/props/snack-toyfish.png", desc: "里面塞了猫薄荷，抱着会踢。", source: "接住玩具奖励", use: { bond: 10, happy: 12 } },
     { id: "toy-sock", name: "旧袜子", cat: "toy", img: "assets/props/prop-socks.png", desc: "她坚信这是她狩猎到的战利品。", source: "初始拥有", use: { bond: 6, happy: 9 } },
 
-    { id: "deco-bowtie", name: "奶油蝴蝶结", cat: "deco", slot: "neck", img: "assets/deco/bowtie.png", desc: "戴在脖子上会显得很乖。", source: "收藏满 8 种解锁", overlay: { x: 50, y: 74, w: 30 } },
-    { id: "deco-scarf", name: "格纹围巾", cat: "deco", slot: "neck", img: "assets/deco/scarf.png", desc: "去湖边的时候适合戴。", source: "首次解锁湖泊", price: 0, overlay: { x: 50, y: 70, w: 34 } },
-    { id: "deco-beret", name: "猫耳贝雷帽", cat: "deco", slot: "head", img: "assets/deco/beret.png", desc: "戴上之后她的表情会很得意。", source: "全部小游戏通关奖励", price: 0, overlay: { x: 47, y: 30, w: 32 } },
-    { id: "deco-sweater", name: "米色小毛衣", cat: "deco", slot: "body", img: "assets/deco/sweater.png", desc: "袖口有点松，她走路的时候会滑下来。", source: "换装间用 60 星星兑换", price: 60, overlay: { x: 50, y: 82, w: 50 } },
-    { id: "deco-hoodie", name: "条纹小卫衣", cat: "deco", slot: "body", img: "assets/deco/hoodie.png", desc: "帽兜里能塞下她一整只脑袋。", source: "换装间用 80 星星兑换", price: 80, overlay: { x: 50, y: 84, w: 52 } },
+    { id: "deco-bowtie", name: "奶油蝴蝶结", cat: "deco", slot: "neck", img: "assets/deco/bowtie.png", desc: "戴在脖子上会显得很乖。", source: "收藏满 8 种解锁", overlay: { x: 50, y: 58, w: 30 } },
+    { id: "deco-scarf", name: "格纹围巾", cat: "deco", slot: "neck", img: "assets/deco/scarf.png", desc: "去湖边的时候适合戴。", source: "首次解锁湖泊", price: 0, overlay: { x: 50, y: 66, w: 50 } },
+    { id: "deco-beret", name: "猫耳贝雷帽", cat: "deco", slot: "head", img: "assets/deco/beret.png", desc: "戴上之后她的表情会很得意。", source: "全部小游戏通关奖励", price: 0, overlay: { x: 50, y: 12, w: 58 } },
+    { id: "deco-sweater", name: "米色小毛衣", cat: "deco", slot: "body", img: "assets/deco/sweater.png", desc: "袖口有点松，她走路的时候会滑下来。", source: "换装间用 60 星星兑换", price: 60, overlay: { x: 50, y: 58, w: 58 } },
+    { id: "deco-hoodie", name: "条纹小卫衣", cat: "deco", slot: "body", img: "assets/deco/hoodie.png", desc: "帽兜里能塞下她一整只脑袋。", source: "换装间用 80 星星兑换", price: 80, overlay: { x: 50, y: 58, w: 60 } },
+    { id: "deco-glasses", name: "圆框眼镜", cat: "deco", slot: "head", img: "assets/deco/glasses.png", desc: "戴上立刻有了学问猫的气质。", source: "换装间用 40 星星兑换", price: 40, overlay: { x: 50, y: 20, w: 30 } },
+    { id: "deco-flowercrown", name: "奶油小花环", cat: "deco", slot: "head", img: "assets/deco/flowercrown.png", desc: "春天编的花环，戴上去郊游正好。", source: "换装间用 50 星星兑换", price: 50, overlay: { x: 50, y: 6, w: 40 } },
+    { id: "deco-cape", name: "米色小披风", cat: "deco", slot: "body", img: "assets/deco/cape.png", desc: "风一吹下摆会飘，像个小侠客。", source: "换装间用 70 星星兑换", price: 70, overlay: { x: 50, y: 58, w: 58 } },
 
     { id: "home-book", name: "旧相册", cat: "home", icon: "book", desc: "第一页是她刚来家里的样子，比现在小一圈。", source: "小屋书架" },
     { id: "plant-tulip", name: "花园郁金香", cat: "plant", icon: "flower", desc: "浇过水的花圃开得最好，花瓣是奶油色。", source: "花园浇水后采集" },
@@ -284,7 +346,7 @@ window.MOMO_CONFIG = {
       { id: "e-forest", title: "第一次走进森林", desc: "从花园的藤蔓拱门进入森林", metric: "visit-forest", target: 1, reward: { coins: 30 } },
       { id: "e-chest", title: "找到森林的宝箱", desc: "打开森林深处的木箱", metric: "chest", target: 1, reward: { coins: 40, items: ["food-can"] } },
       { id: "e-lake", title: "解锁湖泊", desc: "完成两款小游戏，湖边的路就会打开", metric: "lake", target: 1, reward: { coins: 50, items: ["deco-scarf"] } },
-      { id: "e-games", title: "五款小游戏各玩一次", desc: "寻找零食、接住玩具、记忆翻牌、森林寻宝、小猫快跑", metric: "allgames", target: 5, reward: { coins: 80, items: ["deco-beret"] } }
+      { id: "e-games", title: "六款小游戏各玩一次", desc: "寻找零食、接住玩具、记忆翻牌、森林寻宝、小猫快跑、小猫钓鱼", metric: "allgames", target: 6, reward: { coins: 80, items: ["deco-beret"] } }
     ]
   },
 

@@ -201,9 +201,9 @@ h1, h2, h3, h4, p { margin: 0; }
 .area-chev svg { width: 16px; height: 16px; }
 
 /* ---------- 热点 ---------- */
-.hotspots { position: absolute; inset: 0; z-index: 4; }
+.hotspots { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .hotspot {
-  position: absolute; width: 54px; height: 54px; padding: 0;
+  position: absolute; width: 54px; height: 54px; padding: 0; pointer-events: auto;
   transform: translate(-50%, -50%); display: grid; place-items: center;
   filter: drop-shadow(0 6px 12px rgba(20, 12, 6, .4));
 }
@@ -250,6 +250,22 @@ h1, h2, h3, h4, p { margin: 0; }
 .pet-wrap {
   position: absolute; left: 50%; bottom: 25%; width: 40%; max-width: 320px;
   aspect-ratio: 1 / 1; transform: translateX(-50%); z-index: 3; cursor: pointer;
+  touch-action: none;
+  transition: left .3s cubic-bezier(.2, .9, .3, 1), bottom .3s cubic-bezier(.2, .9, .3, 1);
+}
+.pet-wrap.is-dragging {
+  transition: none; cursor: grabbing; z-index: 6;
+}
+.pet-wrap.is-dragging .pet-actor {
+  animation: none; transform: scale(1.05) rotate(-2deg);
+  filter: drop-shadow(0 18px 26px rgba(24, 15, 8, .42));
+}
+.pet-wrap.is-dragging .pet-shadow { animation: none; opacity: .5; transform: translateX(-50%) scale(.86); }
+.pet-wrap.is-drop .pet-actor { animation: settle-drop .5s cubic-bezier(.3, .8, .3, 1); }
+@keyframes settle-drop {
+  0% { transform: scale(1.06, .92); }
+  45% { transform: scale(.96, 1.06); }
+  100% { transform: scale(1, 1); }
 }
 .pet-actor {
   position: relative; z-index: 2; width: 100%; height: 100%; object-fit: contain;
@@ -518,8 +534,14 @@ h1, h2, h3, h4, p { margin: 0; }
   font-size: 11px; padding: 4px 10px; border-radius: 99px; background: rgba(226, 190, 121, .34); color: #6B4F2C;
 }
 .panel-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.panel-body::-webkit-scrollbar { width: 6px; }
-.panel-body::-webkit-scrollbar-thumb { background: rgba(58, 49, 40, .18); border-radius: 99px; }
+.panel-body, .sheet-body { scrollbar-width: thin; scrollbar-color: rgba(180, 140, 80, .55) rgba(58, 49, 40, .07); }
+.panel-body::-webkit-scrollbar, .sheet-body::-webkit-scrollbar { width: 8px; }
+.panel-body::-webkit-scrollbar-track, .sheet-body::-webkit-scrollbar-track { background: rgba(58, 49, 40, .07); border-radius: 99px; }
+.panel-body::-webkit-scrollbar-thumb, .sheet-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(226, 190, 121, .8), rgba(180, 140, 80, .65)); border-radius: 99px;
+  border: 2px solid rgba(255, 253, 247, .9);
+}
+.panel-body::-webkit-scrollbar-thumb:hover, .sheet-body::-webkit-scrollbar-thumb:hover { background: rgba(180, 140, 80, .9); }
 
 @media (min-width: 760px) {
   .panel-layer { align-items: center; padding: 24px; }
@@ -1090,9 +1112,22 @@ body.low-fx .op-pet { animation: none; }
 }
 .dw-cell.is-on { border-color: rgba(150, 176, 132, .7); background: rgba(150, 176, 132, .18); }
 .dw-cell.is-locked { opacity: .78; }
-.dw-visual { width: 46px; height: 46px; display: grid; place-items: center; color: rgba(59, 50, 38, .45); }
+.dw-visual { width: 46px; height: 46px; display: grid; place-items: center; color: rgba(59, 50, 38, .45); touch-action: none; }
 .dw-visual img { width: 100%; height: 100%; object-fit: contain; }
 .dw-visual svg { width: 20px; height: 20px; }
+.dw-cell:not(.is-locked) .dw-visual { cursor: grab; }
+.dw-cell.is-source { opacity: .45; }
+.dw-cell.is-source .dw-visual { cursor: grabbing; }
+.dw-stage.is-drop {
+  outline: 2px dashed rgba(180, 140, 80, .85); outline-offset: -4px;
+  background: radial-gradient(circle at 50% 34%, #FFFBEF 0%, #F6E7C8 70%, #EBD8B4 100%);
+}
+.dw-stage.is-drop .dw-tip { color: #6B4F2C; font-weight: 600; }
+.dw-ghost {
+  position: fixed; left: 0; top: 0; width: 72px; height: 72px; z-index: 200;
+  transform: translate(-50%, -50%) scale(1.05); object-fit: contain; pointer-events: none;
+  filter: drop-shadow(0 10px 18px rgba(24, 15, 8, .4));
+}
 .dw-name { font-size: 12px; font-weight: 600; }
 .dw-state { font-size: 10px; color: rgba(59, 50, 38, .58); }
 .dw-buy { display: flex; gap: 12px; align-items: center; }
@@ -1146,3 +1181,62 @@ body.low-fx .op-pet { animation: none; }
 
 /* 快跑的小提示条 */
 .game-run .sg-hint { font-size: 12px; }
+
+/* ============================================================
+ * V1.2 追加：小游戏猫出镜 / 换装心情 / 跑酷与钓鱼
+ * ============================================================ */
+
+/* ---------- 小游戏里的小猫 ---------- */
+.sg-cat {
+  position: absolute; width: 24%; max-width: 190px; bottom: 5%; left: 2%;
+  z-index: 6; pointer-events: none;
+  filter: drop-shadow(0 12px 18px rgba(28, 18, 10, .35));
+}
+.sg-cat img { width: 100%; display: block; animation: catSway 3.8s ease-in-out infinite; }
+.sg-cat.is-react img { animation: catPop .62s cubic-bezier(.3, .9, .4, 1.3); }
+.sg-cat-bl { left: 2%; right: auto; }
+.sg-cat-br { right: 2%; left: auto; bottom: 2%; width: 19%; }
+@keyframes catSway {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-6px) rotate(1deg); }
+}
+@keyframes catPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.1) translateY(-10px); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- 换装间：今日心情 ---------- */
+.dw-mood {
+  margin-bottom: 12px; padding: 11px 13px; border-radius: 16px;
+  background: linear-gradient(120deg, rgba(255, 248, 232, .96), rgba(244, 231, 206, .92));
+  border: 1px solid rgba(180, 148, 100, .28);
+}
+.dm-head { display: flex; gap: 10px; align-items: center; }
+.dm-ic { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center;
+  border-radius: 11px; background: rgba(228, 192, 126, .3); color: #8a6a3a; }
+.dm-ic svg { width: 18px; height: 18px; }
+.dm-txt { display: flex; flex-direction: column; gap: 3px; }
+.dm-txt b { font-size: 13px; color: var(--ink, #3B3226); }
+.dm-txt i { font-size: 11px; font-style: normal; line-height: 1.6; color: rgba(59, 50, 38, .62); }
+.dm-likes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 9px; }
+.dm-label { font-size: 10px; color: rgba(59, 50, 38, .55); }
+.dm-chip { font-size: 11px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(150, 176, 132, .23); border: 1px solid rgba(120, 150, 100, .45); color: #47603c; }
+.dm-hint { font-size: 10px; color: rgba(59, 50, 38, .5); margin-left: auto; }
+.dm-done { font-size: 10px; color: rgba(120, 96, 60, .55); margin-left: auto; }
+
+/* 衣柜里的“今天喜欢”角标 */
+.dw-like {
+  position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; padding: 2px 6px; border-radius: 999px;
+  background: rgba(211, 132, 110, .2); color: #8a4a38;
+}
+.dw-like svg { width: 10px; height: 10px; }
+.dw-cell { position: relative; }
+
+/* 拖拽时的幽灵图更贴合 */
+.dw-ghost { opacity: .9; filter: drop-shadow(0 10px 16px rgba(20, 12, 6, .4)); }
+
+/* 猫身上的装饰带一点贴合阴影 */
+.pet-deco-item { filter: drop-shadow(0 3px 5px rgba(20, 12, 6, .28)); }

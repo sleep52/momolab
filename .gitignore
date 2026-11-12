@@ -1,0 +1,7 @@
+_raw/
+tools/_*.png
+tools/_*.py
+__pycache__/
+.DS_Store
+Thumbs.db
+*.log

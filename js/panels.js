@@ -55,7 +55,7 @@
         </div>
         <div class="hub-note">
           <h4>进度</h4>
-          <p>已通关 <b>${M.minigameWins()}/${(C.minigames || []).length}</b> 款。通关任意两款可以从花园走到湖边，任意四款之后秘境会打开。</p>
+          <p>已通关 <b>${M.minigameWins()}/${(C.minigames || []).length}</b> 款。通关任意两款可以从花园走到湖边，任意五款之后秘境会打开。</p>
         </div>`,
       onMount: (el) => {
         el.querySelectorAll("[data-game]").forEach((btn) => {

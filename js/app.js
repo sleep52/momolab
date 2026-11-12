@@ -99,7 +99,10 @@
     M.audio.unlock();
     hideOpening();
     setActiveNav("world");
-    const scene = M.state.scene || "home";
+    const saved = M.state.scene || "home";
+    // 存档停在一个已锁回去的区域时（比如当时解锁后来清档），回小屋，不能让画面空着
+    const scene = M.areaUnlocked(saved) ? saved : "home";
+    M.state.scene = scene;
     M.world.enter(scene, { force: true, silent: false });
     M.ui.hud.update();
     if (M.state.settings.music) M.audio.startBGM();
@@ -164,6 +167,7 @@
     const petWrap = $("petWrap");
     petWrap.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (M.pet.blockClick && M.pet.blockClick()) return; // 刚拖拽完，不算摸摸
       M.interact.touchPet();
     });
 

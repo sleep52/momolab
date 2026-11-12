@@ -12,6 +12,7 @@
   let actor, decoEl, sayEl, fxF, wrap;
   let exprToken = 0, actToken = 0, sayTimer = null, idleTimer = null;
   let currentExpr = "idle";
+  let dragBlock = false, stageEl = null;
 
   function src(name) {
     const file = (A.states && A.states[name]) || A.states.idle;
@@ -125,6 +126,7 @@
       img.style.left = def.overlay.x + "%";
       img.style.top = def.overlay.y + "%";
       img.style.width = def.overlay.w + "%";
+      if (def.overlay.rot) img.style.transform = `translate(-50%,-50%) rotate(${def.overlay.rot}deg)`;
       img.style.zIndex = String(3 + (def.cat === "deco" ? 1 : 0));
       decoEl.appendChild(img);
     });
@@ -160,7 +162,7 @@
     const tick = () => {
       idleTimer = setTimeout(() => {
         if (!document.hidden && wrap && !wrap.classList.contains("act-sleep")) {
-          const pool = [["idle", "proud", "shy", "mischief", "curious", "laugh", "lick", "sleepy"]];
+          const pool = [["idle", "proud", "shy", "mischief", "curious", "laugh", "lick", "sleepy", "eat-meow"]];
           const pick = pool[0][Math.floor(Math.random() * pool[0].length)];
           if (pick !== "idle") setExpr(pick, 2400);
           if (Math.random() < 0.55) say(line("idle"), 3200);
@@ -175,27 +177,168 @@
   }
   function stopIdle() { clearTimeout(idleTimer); idleTimer = null; }
 
+  /* ---------- 主界面拖拽：把小猫放到喜欢的位置 ---------- */
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function applyPos(xPct, yPct) {
+    if (!wrap) return;
+    wrap.style.left = xPct + "%";
+    wrap.style.bottom = yPct + "%";
+  }
+
+  function restorePos() {
+    const p = M.state && M.state.petPos;
+    if (p && typeof p.x === "number" && typeof p.y === "number") applyPos(p.x, p.y);
+  }
+
+  function resetPos(quiet) {
+    applyPos(50, 25);
+    M.state.petPos = { x: 50, y: 25 };
+    M.save();
+    if (!quiet) {
+      action("walk", 900);
+      setExpr("proud", 1500);
+      say("她走回惯常待的那块地板，趴下来。");
+    }
+  }
+
+  function setupDrag() {
+    if (!wrap) return;
+    stageEl = wrap.closest(".stage") || document.getElementById("stage");
+    if (!stageEl) return;
+    let dragging = false, pid = null;
+    let sx = 0, sy = 0, offX = 0, offY = 0, wr = null, sr = null, bd = null;
+
+    // 拖拽范围：不遮住底部互动条和顶部区域按钮
+    function bounds() {
+      const w = wr.width, h = wr.height;
+      const ab = stageEl.querySelector(".actionbar");
+      const tb = stageEl.querySelector(".topbar");
+      const abR = ab ? ab.getBoundingClientRect() : null;
+      const tbR = tb && tb.offsetHeight ? tb.getBoundingClientRect() : null;
+      const minY = abR ? (sr.bottom - abR.top) + 8 : 0;
+      const maxY = Math.max(minY, sr.height - h - (tbR ? (tbR.bottom - sr.top) + 8 : 0));
+      return { minX: w / 2, maxX: Math.max(w / 2, sr.width - w / 2), minY, maxY };
+    }
+
+    const move = (e) => {
+      if (!dragging) {
+        if (Math.hypot(e.clientX - sx, e.clientY - sy) < 7) return;
+        dragging = true;
+        wrap.classList.add("is-dragging");
+        setExpr(pick(["curious", "mischief", "focus"]), 6000);
+        try { wrap.setPointerCapture(pid); } catch (err) {}
+      }
+      const w = wr.width, h = wr.height;
+      const cx = clamp(e.clientX - offX + w / 2 - sr.left, bd.minX, bd.maxX);
+      const by = clamp(sr.bottom - (e.clientY - offY + h), bd.minY, bd.maxY);
+      wrap.style.left = cx + "px";
+      wrap.style.bottom = by + "px";
+    };
+
+    const end = () => {
+      wrap.removeEventListener("pointermove", move);
+      wrap.removeEventListener("pointerup", end);
+      wrap.removeEventListener("pointercancel", end);
+      if (!dragging) return;
+      dragging = false;
+      try { wrap.releasePointerCapture(pid); } catch (err) {}
+      wrap.classList.remove("is-dragging");
+      wrap.classList.add("is-drop");
+      setTimeout(() => wrap && wrap.classList.remove("is-drop"), 520);
+      const cx = parseFloat(wrap.style.left) || wr.width / 2;
+      const by = parseFloat(wrap.style.bottom) || 0;
+      const px = +(cx / sr.width * 100).toFixed(2);
+      const py = +(by / sr.height * 100).toFixed(2);
+      M.state.petPos = { x: px, y: py };
+      applyPos(px, py);
+      M.save();
+      dragBlock = true; // 拖完松手那一下不算摸摸
+      M.audio.sfx("soft");
+      // 落点附近有热点就让她回应一句，像是被放到了那个东西旁边
+      const cx2 = parseFloat(wrap.style.left) || 0;
+      const by2 = parseFloat(wrap.style.bottom) || 0;
+      const hot = nearestHotspot(cx2, by2);
+      if (hot) {
+        setExpr(hot.type === "rest" ? "sleepy" : hot.type === "story" ? "shy" : "curious", 2200);
+        say(hot.speech || ("她在" + hot.label + "旁边坐下了。"), 3600);
+      } else {
+        setExpr(pick(["proud", "laugh", "curious"]), 2000);
+        say(M.petLine("idle"), 3000);
+      }
+    };
+
+    function nearestHotspot(pxLeft, pxBottom) {
+      const area = M.areaDef(M.world && M.world.current);
+      if (!area || !(area.hotspots || []).length) return null;
+      let best = null, bestD = 92; // 像素半径，贴近才算
+      area.hotspots.forEach((s) => {
+        const hx = sr.width * (s.x / 100);
+        const hy = sr.height * (1 - s.y / 100);
+        const d = Math.hypot(hx - pxLeft, hy - (sr.height - pxBottom - wr.height * 0.35));
+        if (d < bestD) { bestD = d; best = s; }
+      });
+      return best;
+    }
+
+    wrap.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      // 双击 / 连点两下：回到默认位置
+      const now = Date.now();
+      if (now - (wrap._lastTap || 0) < 320 && Math.hypot(e.clientX - (wrap._lastTapX || 0), e.clientY - (wrap._lastTapY || 0)) < 28) {
+        wrap._lastTap = 0;
+        M.audio.sfx("tap");
+        resetPos();
+        dragBlock = true;
+        return;
+      }
+      wrap._lastTap = now; wrap._lastTapX = e.clientX; wrap._lastTapY = e.clientY;
+      pid = e.pointerId;
+      sx = e.clientX; sy = e.clientY;
+      wr = wrap.getBoundingClientRect();
+      sr = stageEl.getBoundingClientRect();
+      offX = e.clientX - wr.left;
+      offY = e.clientY - wr.top;
+      bd = bounds();
+      dragging = false;
+      wrap.addEventListener("pointermove", move);
+      wrap.addEventListener("pointerup", end);
+      wrap.addEventListener("pointercancel", end);
+    });
+  }
+
+  function blockClick() { const b = dragBlock; dragBlock = false; return b; }
+
   M.pet = {
     init(refs) {
       actor = refs.actor; decoEl = refs.deco; sayEl = refs.say; fxF = refs.fx; wrap = refs.wrap;
       preload();
       refreshDeco();
+      restorePos();
+      setupDrag();
       startIdle();
     },
     setExpr, action, say, burst, zzz, refreshDeco, equipToggle,
-    line,
+    line, blockClick,
+    resetPos,
     get expression() { return currentExpr; },
     resetIdle: () => { stopIdle(); startIdle(); },
     walkTo(xPct, ms) {
       if (!wrap) return;
-      wrap.style.setProperty("--px", xPct + "%");
+      applyPos(xPct, M.state.petPos ? M.state.petPos.y : 25);
+      M.state.petPos = { x: xPct, y: M.state.petPos ? M.state.petPos.y : 25 };
+      M.save();
       action("walk", ms || 900);
     },
     setExpression(name, holdMs) { setExpr(name, holdMs); },
     feedAnim(foodImg) {
-      action("eat", 2600);
-      setExpr("lick", 1500);
-      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr(pick(["happy", "laugh"]), 1600); }, 1500);
+      action("eat", 3400);
+      setExpr("eat-wait");
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr("eat-bite"); }, 600);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr("eat-chew"); }, 1200);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr("eat-swallow"); }, 1800);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr("eat-lick"); }, 2400);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-eat")) setExpr(pick(["happy", "laugh"]), 1600); }, 3000);
       if (foodImg && fxF) {
         const el = document.createElement("img");
         el.className = "fx foodfly";
@@ -207,7 +350,9 @@
     },
     playAnim(toyImg) {
       action("play", 3000);
-      setExpr(pick(["mischief", "focus", "laugh"]), 3000);
+      setExpr("act-jump");
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-play")) setExpr("act-land"); }, 900);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-play")) setExpr(pick(["mischief", "laugh"]), 1600); }, 1700);
       if (toyImg && fxF) {
         const el = document.createElement("img");
         el.className = "fx toyfly";
@@ -225,7 +370,7 @@
     },
     callAnim() {
       action("call", 1800);
-      setExpr(pick(["curious", "excited", "greet"]), 2000);
+      setExpr("eat-meow", 1800);
       M.audio.sfx("happy");
     },
     sleepAnim(ms) {
