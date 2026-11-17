@@ -94,6 +94,20 @@
       M.audio.sfx("fail");
     }
 
+    let stockLine = "";
+    if (win && currentId !== "snack") {
+      const st = yxStock();
+      const gained = YX_PROPS.filter((k) => st[k] < YX_STOCK_CAP);
+      gained.forEach((k) => { st[k] += 1; });
+      M.save();
+      stockLine = gained.length
+        ? `喵了个喵道具库存 +1 · ${gained.map((k) => YX_PROP_NAMES[k]).join(" / ")}`
+        : `喵了个喵道具库存已满 · 各 ${YX_STOCK_CAP} 次`;
+      if (gained.length) setTimeout(() => M.toast(stockLine, "gold"), 1400);
+    }
+    const nextTier = win && currentId === "snack" && yxActive ? YX_ORDER[YX_ORDER.indexOf(yxActive) + 1] : null;
+    const yxAll = win && currentId === "snack" && YX_ORDER.every((k) => (((M.state.flags || {}).yxClear) || {})[k]);
+
     const rewardName = def && def.rewardItem ? (M.itemDef(def.rewardItem) || {}).name : "";
     const overlay = document.createElement("div");
     overlay.className = "play-result " + (win ? "is-win" : "is-lose");
@@ -108,8 +122,11 @@
           <div><i>星星奖励</i><b>+${coins}</b></div>
         </div>
         ${win && rewardName ? `<div class="result-item">获得物品 · <b>${rewardName}</b></div>` : ""}
+        ${stockLine ? `<div class="result-item">${stockLine}</div>` : ""}
+        ${yxAll ? `<div class="result-item">入门 / 进阶 / 地狱 全通关 · 她服了你了</div>` : ""}
+        ${nextTier ? `<div class="result-next"><button class="btn primary" data-next>下一关 · ${YX_DIFF[nextTier].name}</button></div>` : ""}
         <div class="result-acts">
-          <button class="btn primary" data-again>再玩一次</button>
+          <button class="btn ${nextTier ? "ghost" : "primary"}" data-again>再玩一次</button>
           <button class="btn ghost" data-back>回到世界</button>
         </div>
       </div>`;
@@ -117,6 +134,13 @@
     requestAnimationFrame(() => overlay.classList.add("show"));
     overlay.querySelector("[data-again]").addEventListener("click", () => start(currentId));
     overlay.querySelector("[data-back]").addEventListener("click", close);
+    const nextBtn = overlay.querySelector("[data-next]");
+    if (nextBtn) nextBtn.addEventListener("click", () => {
+      M.state.flags = M.state.flags || {};
+      M.state.flags.yxDiff = nextTier;
+      M.save();
+      start(currentId);
+    });
 
     const wins = M.minigameWins();
     if (win) {
@@ -151,6 +175,14 @@
     if (i <= 0) return true;
     return !!(((M.state.flags || {}).yxClear) || {})[YX_ORDER[i - 1]];
   };
+  const YX_PROPS = ["undo", "out", "shuffle"];
+  const YX_PROP_NAMES = { undo: "撤销", out: "移出", shuffle: "洗牌" };
+  const YX_STOCK_CAP = 3;
+  function yxStock() {
+    const f = (M.state.flags = M.state.flags || {});
+    return (f.yxStock = f.yxStock || { undo: 0, out: 0, shuffle: 0 });
+  }
+  let yxActive = null;
   const YX_ICONS = {
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.6 5.8 4.2 10.2l4.4 4.4"/><path d="M4.2 10.2h9.2a5.9 5.9 0 0 1 0 11.8H8.6"/></svg>',
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.2V4.6"/><path d="M7.8 8.8 12 4.6l4.2 4.2"/><path d="M5 13v5.2a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V13"/></svg>',
@@ -162,6 +194,7 @@
     let diffKey = (M.state.flags && M.state.flags.yxDiff) || "normal";
     if (!YX_DIFF[diffKey]) diffKey = "normal";
     while (!yxUnlocked(diffKey)) diffKey = YX_ORDER[YX_ORDER.indexOf(diffKey) - 1];
+    yxActive = diffKey;
     const D = YX_DIFF[diffKey] || YX_DIFF.normal;
     let roundAlive = true;
     cleanups.push(() => { roundAlive = false; });
@@ -198,7 +231,7 @@
           </div>
         </div>
       </div>`;
-    footEl.innerHTML = `<span class="play-tip">点没被压住的小猫牌收进槽位 · 三张相同自动消除 · 7 格塞满就输 · 清空整堆就赢</span>`;
+    footEl.innerHTML = `<span class="play-tip">点没被压住的小猫牌收进槽位 · 三张相同自动消除 · 7 格塞满就输 · 清空整堆就赢 · 道具每局免费 1 次，赢别的小游戏攒库存加次数</span>`;
 
     const pile = stageEl.querySelector(".yx-pile");
     const trayEl = stageEl.querySelector(".yx-tray");
@@ -411,6 +444,14 @@
     let tray = [], shelf = [], history = [];
     let score = 0, triples = 0, combo = 0, lastPop = 0;
     const props = { undo: 1, out: 1, shuffle: 1 };
+    const stock = yxStock();
+    function spendProp(k) {
+      if (props[k] > 0) props[k] -= 1;
+      else if (stock[k] > 0) { stock[k] -= 1; M.save(); }
+      else return false;
+      syncProps();
+      return true;
+    }
     let locked = false;
     const t0 = performance.now();
     let firstSaid = false, halfSaid = false, dangerSaid = false, endSaid = false;
@@ -428,10 +469,13 @@
       });
     }
     function syncProps() {
-      ["undo", "out", "shuffle"].forEach((k) => {
+      YX_PROPS.forEach((k) => {
         const btn = stageEl.querySelector(`[data-prop="${k}"]`);
-        btn.disabled = !props[k];
-        btn.querySelector(".yx-pn").textContent = props[k];
+        const left = props[k] + stock[k];
+        btn.disabled = !left;
+        btn.classList.toggle("is-stock", !props[k] && stock[k] > 0);
+        btn.title = `本局免费 ${props[k]} 次 + 库存 ${stock[k]} 次 · 赢其他小游戏补库存`;
+        btn.querySelector(".yx-pn").textContent = left;
       });
     }
     function trayInsert(t) {
@@ -562,11 +606,11 @@
       });
     }
     function doUndo() {
-      if (locked || !props.undo) return;
+      if (locked || !(props.undo + stock.undo)) return;
       let t = null;
       for (let i = history.length - 1; i >= 0; i--) if (history[i].state === "tray") { t = history[i]; break; }
       if (!t) { M.toast("没有能撤销的牌", "warn"); return; }
-      props.undo = 0; syncProps();
+      spendProp("undo");
       tray.splice(tray.indexOf(t), 1);
       t.state = "flying";
       const from = t.el.getBoundingClientRect();
@@ -585,11 +629,11 @@
       });
     }
     function doOut() {
-      if (locked || !props.out) return;
+      if (locked || !(props.out + stock.out)) return;
       if (shelf.length) { M.toast("移出区满了，点牌可以放回去", "warn"); return; }
       const movable = tray.filter((t) => t.state === "tray").slice(0, 3);
       if (!movable.length) { M.toast("槽里没有能移出的牌", "warn"); return; }
-      props.out = 0; syncProps();
+      spendProp("out");
       movable.forEach((t, i) => {
         tray.splice(tray.indexOf(t), 1);
         shelf.push(t);
@@ -610,12 +654,12 @@
       setCat(catEl, "curious", 1500);
     }
     function doShuffle() {
-      if (locked || !props.shuffle) return;
+      if (locked || !(props.shuffle + stock.shuffle)) return;
       const board = tiles.filter((t) => t.state === "board");
       if (board.length < 3) { M.toast("没剩几张牌了，不用洗", "warn"); return; }
       const assign = solvableAssign(board, tray.concat(shelf).map((t) => t.type));
       if (!assign) { M.toast("这堆暂时洗不动，先消几组", "warn"); return; }
-      props.shuffle = 0; syncProps();
+      spendProp("shuffle");
       board.forEach((t, i) => {
         t.type = assign[i];
         const img = t.el.querySelector("img");
