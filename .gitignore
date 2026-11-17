@@ -5,3 +5,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+_deploy/
+tools/cloudflared.exe
+vibe_images/
+*[-_]check.png
+assets/**/_*.png
+assets/deco/worn/scarf_body_*.png

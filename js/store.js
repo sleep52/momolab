@@ -42,7 +42,7 @@
       coins: 12,
       items: items,
       discovered: discovered,
-      equip: { deco: null, head: null, neck: null, body: null },
+      equip: { deco: null, outfit: null, head: null, neck: null, body: null },
       petPos: null,               // { x, y } 百分比，主界面拖拽后的落点
       decoPos: {},                 // { [itemId]: { dx, dy } } 手动挪衣服的偏移，百分比
       areas: areas,
@@ -51,7 +51,7 @@
       daily: { date: "", counters: {}, seen: {} },
       mood: { date: "", key: "", liked: [], rewarded: false },
       claimed: {},                // { [taskId]: true }
-      settings: { music: true, sfx: true, quality: "auto" },
+      settings: { music: true, sfx: true, quality: "auto", idleAnim: "breathe" },
       seen: { intro: false, welcome: false },
       stats: { pet: 0, feed: 0, play: 0, collect: 0, photo: 0, games: 0, rest: 0 },
       lastSave: Date.now()
@@ -273,8 +273,13 @@
   /* ---------- 换装 ---------- */
   M.decoSlots = function () { return C.decoSlots || [{ id: "neck", label: "颈部" }]; };
   M.equippedId = function (slot) { return (M.state.equip && M.state.equip[slot]) || null; };
+  /* 正在穿的整装（套装）；穿了整装就不再叠小配饰，少折腾 */
+  M.outfit = function () { return C.dressupEnabled === false ? null : M.itemDef(M.equippedId("outfit")); };
   M.equippedList = function () {
+    if (C.dressupEnabled === false) return [];
+    if (M.outfit()) return [{ slot: "outfit", def: M.outfit() }];
     return M.decoSlots()
+      .filter((s) => s.id !== "outfit")
       .map((s) => ({ slot: s.id, def: M.itemDef(M.equippedId(s.id)) }))
       .filter((x) => x.def);
   };

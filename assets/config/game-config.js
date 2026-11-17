@@ -35,30 +35,30 @@ window.MOMO_CONFIG = {
   petBirthday: "2023 年 3 月 8 日",
   petPersonality: "好奇、爱撒娇、有点小傲娇",
   petIntro: "一只把家当成领地的虎斑小猫。最爱小鱼干和晒太阳，怕吹风机，会在你打字的时候踩上键盘。",
-  petAvatar: "assets/pets/pet001/avatar.png",
+  petAvatar: "assets/pets/pet001/hero.png",
 
   /* 角色动作素材：固定机位、统一比例，换素材只需替换文件 */
   petCharacterAssets: {
     basePath: "assets/pets/pet001/",
     states: {
-      idle: "avatar.png",
+      idle: "daze.png",
       calm: "deadpan.png",
-      greet: "avatar.png",
-      happy: "happy.png",
+      greet: "daze.png",
+      happy: "charm.png",
       excited: "surprise.png",   // 轻微吃惊：嘴只开一条缝，不是原来那张大张嘴
-      shy: "innocent.png",
+      shy: "charm.png",
       proud: "skeptical.png",
       sulk: "angry.png",
       mischief: "mischief.png",
       sleep: "sleep.png",
       /* ---- 第二批表情：全部与 avatar 同机位、同毛色 ---- */
-      laugh: "laugh.png",        // 眯眼笑
-      lick: "lick.png",          // 舔嘴（吃东西时用）
-      curious: "curious.png",    // 歪头好奇（进新区域用）
+      laugh: "wink.png",        // 眯眼笑
+      lick: "tilt.png",          // 舔嘴（吃东西时用）
+      curious: "tilt.png",    // 歪头好奇（进新区域用）
       scared: "scared.png",      // 飞机耳（小游戏失败用）
       focus: "focus.png",        // 瞳孔收窄，专注（寻宝 / 快跑用）
       yawn: "yawn.png",          // 打哈欠（刚睡醒用）
-      sleepy: "shy.png",         // 半眯眼发困（休息时用）
+      sleepy: "charm.png",      // 软软眯眼（休息/打盹预览用，原来的 shy.png 看着像生气）
       "eat-wait": "eat-wait.png",   // 等待投喂：抬头张嘴期待（无食物）
       "eat-meow": "eat-meow.png",   // 轻声喵叫：小圆 o 嘴（呼唤用）
       "eat-bite": "eat-bite.png",   // 小口咬鱼干（吃东西用）
@@ -74,11 +74,15 @@ window.MOMO_CONFIG = {
     }
   },
 
-  /* 装饰槽位：头部 / 颈部 / 身体，可以同时戴三件 */
+  /* 换装先关掉（整装和小配饰都不再渲染）。想恢复时把下面改成 true 即可。 */
+  dressupEnabled: false,
+
+  /* 换装两件事：整装（一键换的整套造型） + 几件小配饰。
+   * 整装不是叠图，是让模型直接“穿在她身上”画好的整张，所以有褶子、有压毛阴影，也不会错位。 */
   decoSlots: [
-    { id: "head", label: "头部", z: 4 },
-    { id: "neck", label: "颈部", z: 5 },
-    { id: "body", label: "身体", z: 3 }
+    { id: "outfit", label: "整装", z: 0, big: true },
+    { id: "head", label: "头部配饰", z: 4 },
+    { id: "neck", label: "颈部配饰", z: 5 }
   ],
 
   /* ---------- 世界主题与场景 ---------- */
@@ -124,6 +128,7 @@ window.MOMO_CONFIG = {
         { id: "can", label: "洒水壶", x: 14, y: 62, type: "water", icon: "water", speech: "给花圃浇了水，泥土的味道升起来。" },
         { id: "flower", label: "郁金香", x: 24, y: 74, type: "collect", item: "plant-tulip", requires: "watered", icon: "flower", speech: "花瓣软软的，掐下来的时候还带着水珠。" },
         { id: "butterfly", label: "蝴蝶", x: 72, y: 36, type: "collect", item: "plant-butterfly", icon: "butterfly", speech: "蝴蝶落在她鼻尖上，她愣了一下，一动不敢动。" },
+        { id: "flutter", label: "追蝴蝶", x: 86, y: 60, type: "minigame", target: "butterfly", icon: "butterfly", speech: "好几只蝴蝶在花丛里飞，她尾巴尖已经开始抖了。" },
         { id: "arch", label: "藤蔓拱门", x: 50, y: 28, type: "travel", target: "forest", icon: "next", speech: "拱门后面就是森林的小径。" }
       ]
     },
@@ -178,12 +183,13 @@ window.MOMO_CONFIG = {
   minigames: [
     {
       id: "snack",
-      name: "寻找零食",
-      tagline: "把藏起来的零食都找出来",
-      desc: "屋子的角落藏着 5 份零食。点中就能收进口袋，60 秒内找齐。",
-      icon: "fish",
+      name: "喵了个喵",
+      tagline: "三张一样的小猫，一起消掉",
+      desc: "整页开局：点没被压住的小猫牌收进下方 7 格槽位，三张相同自动消除；槽位塞满就输，清空整堆就赢。撤销 / 移出 / 洗牌每局各一次，入门 / 进阶 / 地狱三档难度，地狱通关入门后解锁。",
+      icon: "paw",
       accent: "peach",
-      rewardItem: "food-fish"
+      rewardItem: "food-fish",
+      page: "game.html"
     },
     {
       id: "catch",
@@ -231,6 +237,16 @@ window.MOMO_CONFIG = {
       accent: "forest",
       rewardItem: "food-fish",
       target: 5
+    },
+    {
+      id: "butterfly",
+      name: "捉蝴蝶",
+      tagline: "在花园里追着翅膀跑",
+      desc: "蝴蝶在花园里乱飞，点一下或按一下就能扑住。30 秒内捉到 6 只算通关，捉空的会扣分。",
+      icon: "butterfly",
+      accent: "gold",
+      rewardItem: "plant-butterfly",
+      target: 6
     }
   ],
 
@@ -307,14 +323,15 @@ window.MOMO_CONFIG = {
     { id: "toy-fish", name: "布偶鱼", cat: "toy", img: "assets/props/snack-toyfish.png", desc: "里面塞了猫薄荷，抱着会踢。", source: "接住玩具奖励", use: { bond: 10, happy: 12 } },
     { id: "toy-sock", name: "旧袜子", cat: "toy", img: "assets/props/prop-socks.png", desc: "她坚信这是她狩猎到的战利品。", source: "初始拥有", use: { bond: 6, happy: 9 } },
 
-    { id: "deco-bowtie", name: "奶油蝴蝶结", cat: "deco", slot: "neck", img: "assets/deco/bowtie_fit.png", desc: "戴在脖子上会显得很乖。", source: "收藏满 8 种解锁", overlay: { x: 48, y: 54, w: 26 } },
-    { id: "deco-scarf", name: "格纹围巾", cat: "deco", slot: "neck", img: "assets/deco/scarf_worn.png", desc: "去湖边的时候适合戴。", source: "首次解锁湖泊", price: 0, overlay: { x: 50, y: 56, w: 56 } },
-    { id: "deco-beret", name: "猫耳贝雷帽", cat: "deco", slot: "head", img: "assets/deco/beret_fit.png", desc: "戴上之后她的表情会很得意。", source: "全部小游戏通关奖励", price: 0, overlay: { x: 50, y: 3, w: 68, rot: -6 } },
-    { id: "deco-sweater", name: "米色小毛衣", cat: "deco", slot: "body", img: "assets/deco/sweater_fit.png", desc: "袖口有点松，她走路的时候会滑下来。", source: "换装间用 60 星星兑换", price: 60, overlay: { x: 49, y: 60, w: 58 } },
-    { id: "deco-hoodie", name: "条纹小卫衣", cat: "deco", slot: "body", img: "assets/deco/hoodie_fit.png", desc: "帽兜里能塞下她一整只脑袋。", source: "换装间用 80 星星兑换", price: 80, overlay: { x: 49, y: 60, w: 60 } },
+    { id: "deco-bowtie", name: "奶油蝴蝶结", cat: "deco", slot: "neck", img: "assets/deco/bowtie_fit.png", desc: "戴在脖子上会显得很乖。", source: "换装间用 20 星星兑换", price: 20, overlay: { x: 48, y: 62, w: 22 } },
     { id: "deco-glasses", name: "圆框眼镜", cat: "deco", slot: "head", img: "assets/deco/glasses_fit.png", desc: "戴上立刻有了学问猫的气质。", source: "换装间用 40 星星兑换", price: 40, overlay: { x: 40, y: 36, w: 34 } },
-    { id: "deco-flowercrown", name: "奶油小花环", cat: "deco", slot: "head", img: "assets/deco/flowercrown_fit.png", desc: "春天编的花环，戴上去郊游正好。", source: "换装间用 50 星星兑换", price: 50, overlay: { x: 40, y: 6, w: 46 } },
-    { id: "deco-cape", name: "米色小披风", cat: "deco", slot: "body", img: "assets/deco/cape_fit.png", desc: "风一吹下摆会飘，像个小侠客。", source: "换装间用 70 星星兑换", price: 70, overlay: { x: 49, y: 60, w: 58 } },
+    { id: "deco-flowercrown", name: "奶油小花环", cat: "deco", slot: "head", img: "assets/deco/flowercrown_fit.png", desc: "春天编的花环，戴上去郊游正好。", source: "首次解锁湖泊", price: 0, overlay: { x: 40, y: 6, w: 46 } },
+
+    /* ---- 整装：模型直接穿在她身上画好的整张，一键换，不用调位置 ---- */
+    { id: "outfit-academy", name: "学院风", cat: "deco", slot: "outfit", outfit: true, img: "assets/outfits/academy.png", thumb: "assets/outfits/thumb_academy.png", desc: "格纹围巾绕在脖子上，冬天的那种。", source: "六款小游戏各玩一次", price: 0 },
+    { id: "outfit-sweater", name: "米色毛衣", cat: "deco", slot: "outfit", outfit: true, img: "assets/outfits/sweater.png", thumb: "assets/outfits/thumb_sweater.png", desc: "粗针织的小毛衣，领口贴着脖子，袖口包住前腿。", source: "换装间用 60 星星兑换", price: 60 },
+    { id: "outfit-cape", name: "米色披风", cat: "deco", slot: "outfit", outfit: true, img: "assets/outfits/cape.png", thumb: "assets/outfits/thumb_cape.png", desc: "颈上系带，披风垂到身体两侧。风一吹下摆会动。", source: "换装间用 70 星星兑换", price: 70 },
+    { id: "outfit-hoodie", name: "条纹卫衣", cat: "deco", slot: "outfit", outfit: true, img: "assets/outfits/hoodie.png", thumb: "assets/outfits/thumb_hoodie.png", desc: "帽兜软软地堆在脖子后面，布面有堆叠的褶。", source: "换装间用 80 星星兑换", price: 80 },
 
     { id: "home-book", name: "旧相册", cat: "home", icon: "book", desc: "第一页是她刚来家里的样子，比现在小一圈。", source: "小屋书架" },
     { id: "plant-tulip", name: "花园郁金香", cat: "plant", icon: "flower", desc: "浇过水的花圃开得最好，花瓣是奶油色。", source: "花园浇水后采集" },
@@ -345,8 +362,8 @@ window.MOMO_CONFIG = {
     explore: [
       { id: "e-forest", title: "第一次走进森林", desc: "从花园的藤蔓拱门进入森林", metric: "visit-forest", target: 1, reward: { coins: 30 } },
       { id: "e-chest", title: "找到森林的宝箱", desc: "打开森林深处的木箱", metric: "chest", target: 1, reward: { coins: 40, items: ["food-can"] } },
-      { id: "e-lake", title: "解锁湖泊", desc: "完成两款小游戏，湖边的路就会打开", metric: "lake", target: 1, reward: { coins: 50, items: ["deco-scarf"] } },
-      { id: "e-games", title: "六款小游戏各玩一次", desc: "寻找零食、接住玩具、记忆翻牌、森林寻宝、小猫快跑、小猫钓鱼", metric: "allgames", target: 6, reward: { coins: 80, items: ["deco-beret"] } }
+      { id: "e-lake", title: "解锁湖泊", desc: "完成两款小游戏，湖边的路就会打开", metric: "lake", target: 1, reward: { coins: 50, items: ["deco-flowercrown"] } },
+      { id: "e-games", title: "七款小游戏各玩一次", desc: "喵了个喵、接住玩具、记忆翻牌、森林寻宝、小猫快跑、小猫钓鱼、捉蝴蝶", metric: "allgames", target: 7, reward: { coins: 80, items: ["outfit-academy"] } }
     ]
   },
 

@@ -664,28 +664,107 @@ h1, h2, h3, h4, p { margin: 0; }
 }
 .sg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
-/* 寻找零食 */
-.snack-spot {
-  position: absolute; transform: translate(-50%, -50%); width: 66px; height: 66px;
-  display: grid; place-items: center; background: none; border-radius: 50%;
-  animation: snack-bob 3.4s ease-in-out infinite;
+/* 喵了个喵（零食三消） */
+.yx-shade { background: radial-gradient(120% 80% at 50% 38%, rgba(24, 16, 9, .34), rgba(24, 16, 9, .72)); }
+.yx-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; user-select: none; -webkit-user-select: none; }
+.yx-board { position: relative; flex: 1 1 auto; min-height: 0; }
+.yx-pile { position: absolute; inset: 34px 6px 4px; }
+.yx-diff {
+  position: absolute; z-index: 40; top: 8px; left: 10px; display: flex; gap: 3px; padding: 3px;
+  border-radius: 99px; background: rgba(24, 16, 9, .5); backdrop-filter: blur(4px);
 }
-@keyframes snack-bob { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, calc(-50% - 4px)); } }
-.snack-halo {
-  position: absolute; inset: -6px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 238, 200, .5), rgba(255, 238, 200, 0) 70%);
-  animation: ping 2.4s ease-out infinite;
+.yx-diff-btn {
+  font-size: 11px; padding: 4px 11px; border-radius: 99px; border: none; background: none;
+  color: rgba(255, 243, 220, .72); cursor: pointer; transition: background .18s ease, color .18s ease;
 }
-.snack-spot img { width: 56px; height: 56px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(20, 12, 6, .45)); transition: transform .2s ease; }
-.snack-spot:hover img { transform: scale(1.08); }
-.snack-spot.found { animation: none; pointer-events: none; }
-.snack-spot.found img { animation: found-pop .5s cubic-bezier(.2, .9, .3, 1) forwards; }
-.snack-spot.found .snack-halo { display: none; }
-@keyframes found-pop {
-  0% { transform: scale(1); opacity: 1; }
-  45% { transform: scale(1.35) rotate(6deg); opacity: 1; }
-  100% { transform: scale(.4) translateY(-30px); opacity: 0; }
+.yx-diff-btn.is-on { background: linear-gradient(135deg, #E4C07E, #D9A960); color: #4A3413; font-weight: 700; }
+.yx-diff-btn.is-locked { opacity: .5; cursor: not-allowed; }
+.yx-lock { width: 10px; height: 10px; vertical-align: -1px; margin-right: 3px; }
+.yx-tile { position: absolute; padding: 0; border: none; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.yx-face {
+  position: absolute; inset: 1.5px; border-radius: 20%; display: grid; place-items: center;
+  background: linear-gradient(160deg, var(--face1, #FFFDF6), var(--face2, #F2E5CC));
+  box-shadow: 0 2.5px 0 var(--edge, #C6AF87), 0 7px 12px -5px rgba(18, 10, 4, .6), inset 0 1px 0 rgba(255, 255, 255, .9);
+  transition: transform .16s ease, box-shadow .16s ease, filter .2s ease;
 }
+/* 八种小猫牌各带一个底色，小尺寸下也能一眼分组 */
+.yx-t0 { --face1: #F3F7EC; --face2: #D9E6C8; --edge: #9DBE8D; }
+.yx-t1 { --face1: #FDF6E3; --face2: #F3E2B4; --edge: #D9B45E; }
+.yx-t2 { --face1: #FDF0E7; --face2: #F6D3BC; --edge: #E09678; }
+.yx-t3 { --face1: #EEF3FA; --face2: #CFDDEE; --edge: #86A9D6; }
+.yx-t4 { --face1: #F5EFFA; --face2: #E0D2EE; --edge: #B79BD9; }
+.yx-t5 { --face1: #FBEFF2; --face2: #F2D3DB; --edge: #E795A8; }
+.yx-t6 { --face1: #ECF7F3; --face2: #CDE9DF; --edge: #7FCDBB; }
+.yx-t7 { --face1: #F7F0E8; --face2: #E4D2BE; --edge: #C89B7B; }
+.yx-face img { width: 88%; height: 88%; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.yx-tile:not(.is-blocked):hover .yx-face {
+  transform: translateY(-2.5px);
+  box-shadow: 0 4px 0 var(--edge, #C6AF87), 0 12px 18px -6px rgba(18, 10, 4, .65), 0 0 14px rgba(255, 224, 160, .35), inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+.yx-tile.is-blocked { cursor: default; }
+.yx-tile.is-blocked .yx-face { filter: brightness(.52) saturate(.62); }
+.yx-tile.is-pop { pointer-events: none; }
+.yx-tile.is-pop .yx-face { animation: yx-pop .34s cubic-bezier(.3, .7, .3, 1) forwards; }
+@keyframes yx-pop {
+  35% { transform: scale(1.16); filter: brightness(1.25); }
+  100% { transform: scale(.1) rotate(14deg); opacity: 0; }
+}
+.yx-fly { position: absolute; z-index: 900; pointer-events: none; transform-origin: 0 0; }
+.yx-fly .yx-face { position: absolute; inset: 1.5px; }
+.yx-zone {
+  position: relative; z-index: 30; flex: 0 0 auto; display: flex; flex-direction: column; gap: 7px;
+  padding: 6px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(30, 21, 12, 0), rgba(30, 21, 12, .55) 26%, rgba(26, 18, 10, .78));
+}
+.yx-shelf-row { position: relative; height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.yx-shelf-label { font-size: 10px; color: rgba(255, 243, 220, .42); letter-spacing: .14em; }
+.yx-shelf { display: flex; gap: 6px; }
+.yx-shelf-cell { position: relative; height: 42px; border-radius: 10px; border: 1.5px dashed rgba(255, 240, 210, .2); background: rgba(0, 0, 0, .16); }
+.yx-shelf-cell .yx-face { inset: 2px; }
+.sg-cat.yx-cat { position: absolute; right: 2px; bottom: -4px; left: auto; width: 54px; max-width: none; z-index: 7; }
+.yx-bar {
+  position: relative; height: 58px; border-radius: 15px;
+  background: linear-gradient(180deg, #5C4833, #47351F);
+  box-shadow: inset 0 2px 9px rgba(0, 0, 0, .55), 0 1px 0 rgba(255, 240, 210, .14), 0 10px 22px -14px rgba(0, 0, 0, .8);
+}
+.yx-slots { position: absolute; inset: 6px; display: flex; gap: 6px; }
+.yx-slot { flex: 1; border-radius: 9px; border: 1.5px dashed rgba(255, 240, 210, .2); background: rgba(0, 0, 0, .2); }
+.yx-tray { position: absolute; inset: 6px; }
+.yx-tray .yx-tile { pointer-events: none; transition: left .24s cubic-bezier(.3, .8, .3, 1); }
+.yx-bar.is-danger { animation: yx-danger 1s ease-in-out infinite; }
+@keyframes yx-danger {
+  0%, 100% { box-shadow: inset 0 2px 9px rgba(0, 0, 0, .55), 0 0 0 1.5px rgba(240, 180, 155, .55), 0 0 18px rgba(240, 150, 110, .3); }
+  50% { box-shadow: inset 0 2px 9px rgba(0, 0, 0, .55), 0 0 0 1.5px rgba(240, 180, 155, .95), 0 0 26px rgba(240, 150, 110, .55); }
+}
+.yx-bar.is-full {
+  animation: yx-full .5s ease;
+  box-shadow: inset 0 2px 9px rgba(0, 0, 0, .55), 0 0 0 2px rgba(224, 101, 74, .9), 0 0 26px rgba(224, 101, 74, .5);
+}
+@keyframes yx-full { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 55% { transform: translateX(6px); } 80% { transform: translateX(-3px); } }
+.yx-props { display: flex; gap: 8px; }
+.yx-prop {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 2px;
+  border-radius: 12px; border: 1px solid rgba(255, 240, 210, .24); background: rgba(255, 250, 240, .09);
+  color: #FFF3DC; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .16s ease, transform .16s ease, opacity .2s ease; -webkit-tap-highlight-color: transparent;
+}
+.yx-prop:hover:not(:disabled) { background: rgba(255, 250, 240, .17); transform: translateY(-1px); }
+.yx-prop:disabled { opacity: .32; cursor: default; }
+.yx-prop svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.yx-pn {
+  font-style: normal; font-size: 10px; min-width: 15px; height: 15px; display: grid; place-items: center;
+  border-radius: 99px; background: rgba(228, 192, 126, .3); color: #FFE9B8;
+}
+.yx-prop-ghost { flex: 0 0 auto; padding: 8px 12px; border-color: rgba(255, 240, 210, .14); background: none; color: rgba(255, 243, 220, .66); }
+.yx-spark { position: absolute; z-index: 940; border-radius: 50%; pointer-events: none; }
+.yx-float {
+  position: absolute; z-index: 950; pointer-events: none; font-size: 14px; font-weight: 800;
+  color: #FFE9B8; text-shadow: 0 2px 8px rgba(20, 10, 4, .8); white-space: nowrap;
+}
+.yx-float.is-big { color: #FFD98A; font-size: 16px; }
+.ph-sound { cursor: pointer; border: none; }
+.ph-sound:hover { background: rgba(228, 192, 126, .4); }
+body.low-fx .yx-bar.is-danger { animation: none; box-shadow: inset 0 2px 9px rgba(0, 0, 0, .55), 0 0 0 1.5px rgba(240, 180, 155, .7); }
 
 /* 记忆翻牌 */
 .mm-wrap { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(120% 80% at 50% 30%, #EFE2CB, #DCC9A8); }
@@ -1028,7 +1107,7 @@ h1, h2, h3, h4, p { margin: 0; }
 
 /* 低配省电：关掉大部分环境动画 */
 body.low-fx .scene-vignette { }
-body.low-fx .hs-ring, body.low-fx .snack-halo, body.low-fx .tr-ring { animation: none; opacity: .4; }
+body.low-fx .hs-ring, body.low-fx .tr-ring { animation: none; opacity: .4; }
 body.low-fx .fx-layer { display: none; }
 body.low-fx .pet-figure, body.low-fx .pet-shadow { animation: none; }
 body.low-fx .op-art { animation: none; transform: scale(1.04); }
@@ -1146,6 +1225,19 @@ body.low-fx .op-pet { animation: none; }
 .dw-cell:not(.is-locked) .dw-visual { cursor: grab; }
 .dw-cell.is-source { opacity: .45; }
 .dw-cell.is-source .dw-visual { cursor: grabbing; }
+
+/* 整装：卡片做大，一眼能看出是整套 */
+.dw-grid.is-sets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.dw-cell-set { padding: 12px 10px 11px; border-radius: 17px; }
+.dw-cell-set .dw-visual { width: auto; height: 118px; width: 100%; }
+.dw-cell-set .dw-visual img { height: 118px; width: 100%; object-fit: contain; }
+.dw-cell-set .dw-name { font-size: 13px; font-weight: 600; }
+.dw-cell-set.is-on::after {
+  content: "穿着中"; position: absolute; top: 8px; right: 8px;
+  font-size: 10px; padding: 2px 7px; border-radius: 9px;
+  background: rgba(150, 176, 132, .9); color: #FFFDF7;
+}
+.dw-cell-set.is-on { border-color: rgba(150, 176, 132, .85); box-shadow: 0 4px 14px rgba(120, 140, 100, .18); }
 .dw-stage.is-drop {
   outline: 2px dashed rgba(180, 140, 80, .85); outline-offset: -4px;
   background: radial-gradient(circle at 50% 34%, #FFFBEF 0%, #F6E7C8 70%, #EBD8B4 100%);
@@ -1268,3 +1360,99 @@ body.low-fx .op-pet { animation: none; }
 
 /* 猫身上的装饰带一点贴合阴影 */
 .pet-deco-item { filter: drop-shadow(0 3px 5px rgba(20, 12, 6, .28)); }
+
+/* ---------- 待机动画（用户可自选） ---------- */
+.set-row-col { flex-direction: column; align-items: flex-start; gap: 10px; }
+.set-row-col .sr-main { width: 100%; }
+.idle-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.idle-chip {
+  border: 1px solid rgba(120, 96, 70, .18);
+  background: rgba(255, 252, 246, .86);
+  color: #6B5745;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: .22s;
+}
+.idle-chip.on { background: #F0C88A; border-color: #E2B274; color: #4A3826; box-shadow: 0 4px 12px rgba(214, 160, 92, .28); }
+
+.pet-wrap.idle-breathe:not([class*="act-"]) .pet-figure { animation: breathe 6.4s ease-in-out infinite; }
+.pet-wrap.idle-sway:not([class*="act-"]) .pet-figure { animation: idle-sway 6.6s ease-in-out infinite; transform-origin: 50% 100%; }
+.pet-wrap.idle-nap:not([class*="act-"]) .pet-figure { animation: idle-nap 8.4s ease-in-out infinite; transform-origin: 50% 100%; }
+.pet-wrap.idle-lively:not([class*="act-"]) .pet-figure { animation: idle-lively 5.4s cubic-bezier(.3, .8, .3, 1) infinite; }
+@keyframes idle-sway {
+  0%, 100% { transform: rotate(-1.2deg) translateY(0); }
+  50% { transform: rotate(1.2deg) translateY(-2px); }
+}
+@keyframes idle-nap {
+  0%, 100% { transform: scale(.985) translateY(3px); }
+  50% { transform: scale(1) translateY(6px); }
+}
+@keyframes idle-lively {
+  0%, 62%, 100% { transform: translateY(0) scale(1); }
+  70% { transform: translateY(-8px) scale(1.015); }
+  78% { transform: translateY(0) scale(.995); }
+  86% { transform: translateY(-4px) scale(1.008); }
+}
+
+/* ---------- 逗猫棒 ---------- */
+.stage.is-wanding { cursor: crosshair; }
+.wand-fly { position: absolute; z-index: 90; pointer-events: none; transform: translate(-50%, -50%); width: 64px; height: 64px; animation: wand-bob 1.5s ease-in-out infinite; }
+.wand-fly .wf-ball {
+  position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: 50%; background: radial-gradient(circle at 34% 32%, #FFF6DC, #F6C078 58%, #E5A45C);
+  box-shadow: 0 0 14px rgba(246, 198, 130, .9), 0 0 34px rgba(246, 198, 130, .5);
+}
+.wand-fly .wf-tail {
+  position: absolute; left: 50%; top: 50%; width: 8px; height: 40px; margin-top: 6px;
+  border-radius: 50% 50% 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 240, 206, .95), rgba(214, 160, 110, .55));
+  transform-origin: 50% 0; transform: rotate(-14deg);
+  filter: blur(.3px);
+}
+@keyframes wand-bob {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-6deg); }
+  50% { transform: translate(-50%, -58%) rotate(7deg); }
+}
+
+/* ---------- 窄屏（手机）互动条：两行，别把摸摸挤到屏幕外 ---------- */
+@media (max-width: 560px) {
+  .actionbar {
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    justify-items: center;
+    justify-content: center;
+    max-width: 94vw;
+    gap: 6px;
+    padding: 7px;
+    border-radius: 20px;
+  }
+  .act-btn { width: clamp(42px, 13.5vw, 50px); height: clamp(46px, 14vw, 54px); }
+  .act-btn i { font-size: 10px; }
+}
+@media (max-width: 380px) {
+  .actionbar { gap: 5px; padding: 6px; max-width: 96vw; }
+  .act-btn { width: 40px; height: 46px; }
+  .act-ic { width: 20px; height: 20px; }
+}
+
+
+
+/* ---------- 环境里的小蝴蝶 ---------- */
+.ambient { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.bfly {
+  position: absolute; width: 30px; height: 24px;
+  animation: bfly-fly var(--dur, 14s) linear infinite;
+}
+.bfly svg { width: 100%; height: 100%; display: block; }
+.bfly .wings { transform-origin: 50% 55%; animation: bfly-flap .3s ease-in-out infinite alternate; }
+@keyframes bfly-flap { from { transform: scaleX(1); } to { transform: scaleX(.58); } }
+@keyframes bfly-fly {
+  0%   { transform: translate3d(0, 0, 0) rotate(-5deg); }
+  25%  { transform: translate3d(16vw, -5vh, 0) rotate(5deg); }
+  50%  { transform: translate3d(34vw, 3vh, 0) rotate(-4deg); }
+  75%  { transform: translate3d(14vw, 8vh, 0) rotate(4deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(-5deg); }
+}
+@media (prefers-reduced-motion: reduce) { .bfly, .bfly .wings { animation: none; } }

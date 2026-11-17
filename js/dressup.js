@@ -8,7 +8,7 @@
   const C = window.MOMO_CONFIG;
   const icon = (n) => window.MOMO_ICONS[n] || "";
 
-  let activeSlot = "head";
+  let activeSlot = "outfit";
   let fitTarget = null;
   let liveStage = null;
 
@@ -69,6 +69,16 @@
       .replace(/\.png$/i, "__head.png")
       .replace(/\/([^/]+__head\.png)$/, "/layers/$1");
     const headImg = `<img class="dw-cat dw-head" src="${headUrl}" alt="">`;
+    const outfit = M.outfit();
+    if (outfit) {
+      // 整装模式：身体是「已经穿好」的整张图，脸单独用头部图层盖上去，表情照样能换
+      return `<div class="dw-stage">
+        <div class="dw-shadow"></div>
+        <img class="dw-cat" src="${outfit.img}" alt="${C.petName}">
+        ${headImg}
+        <span class="dw-tip">这一套已经穿好了，不用调位置</span>
+      </div>`;
+    }
     const low = eq.filter((it) => it.def.slot !== "head")
       .map((it) => `<img class="dw-item" data-id="${it.def.id}" src="${it.def.img}" style="${overlayStyle(it.def)}" alt="">`).join("");
     const top = eq.filter((it) => it.def.slot === "head")
@@ -79,12 +89,13 @@
       ${low}
       ${headImg}
       ${top}
-      <span class="dw-tip">${eq.length ? "按住衣服就能拖，帽子围巾都能挪" : "把衣服拖到她身上试试"}</span>
+      <span class="dw-tip">${eq.length ? "按住配饰就能拖，调到你顺眼的位置" : "试试上面的整装，一键就穿好了"}</span>
     </div>`;
   }
 
   // 微调条：选一件已穿的，拖 / 滑到合适的位置
   function fitBar() {
+    if (M.outfit()) return "";
     const eq = M.equippedList();
     if (!eq.length) return "";
     if (!fitTarget || !eq.some((it) => it.def.id === fitTarget)) fitTarget = eq[0].def.id;
@@ -242,7 +253,7 @@
           ghost.className = "dw-ghost";
           ghost.src = def.img;
           ghost.alt = "";
-          ghost.style.width = ((def.overlay || {}).w || 30) + "%";
+          ghost.style.width = (def.outfit ? 52 : ((def.overlay || {}).w || 30)) + "%";
           document.body.appendChild(ghost);
           try { cell.setPointerCapture(pid); } catch (err) {}
         }
@@ -283,11 +294,12 @@
     const wearing = M.equippedId(def.slot || "neck") === def.id;
     const price = def.price || 0;
     const liked = owned && M.moodLikes(def.id);
-    return `<button class="dw-cell ${wearing ? "is-on" : ""} ${owned ? "" : "is-locked"}" data-deco="${def.id}">
+    const pic = def.thumb || def.img;
+    return `<button class="dw-cell ${def.outfit ? "dw-cell-set" : ""} ${wearing ? "is-on" : ""} ${owned ? "" : "is-locked"}" data-deco="${def.id}">
       ${liked ? `<span class="dw-like">${icon("heart")}今天喜欢</span>` : ""}
-      <span class="dw-visual">${owned ? `<img src="${def.img}" alt="">` : icon("lock")}</span>
+      <span class="dw-visual">${owned ? `<img src="${pic}" alt="">` : icon("lock")}</span>
       <span class="dw-name">${owned ? def.name : (price ? price + " 星星" : "未解锁")}</span>
-      <span class="dw-state">${wearing ? "佩戴中" : owned ? "点一下 / 拖到她身上" : (price ? "点击解锁" : "继续探索")}</span>
+      <span class="dw-state">${wearing ? "已穿着" : owned ? (def.outfit ? "点一下整套换上" : "点一下 / 拖到她身上") : (price ? "点击解锁" : "继续探索")}</span>
     </button>`;
   }
 
@@ -318,8 +330,8 @@
             ${fitBar()}
           </div>
         </div>
-        <div class="section-title"><h3>${(slots.find((s) => s.id === activeSlot) || {}).label || ""}可选</h3><span>点一下试穿，或拖到小猫身上</span></div>
-        <div class="dw-grid">${list.map(cell).join("") || `<p class="empty-tip">这个位置还没有装饰。</p>`}</div>
+        <div class="section-title"><h3>${(slots.find((s) => s.id === activeSlot) || {}).label || ""}</h3><span>${activeSlot === "outfit" ? "点一下就整套换上，不用调位置" : "点一下试穿，或拖到小猫身上"}</span></div>
+        <div class="dw-grid ${activeSlot === "outfit" ? "is-sets" : ""}">${list.map(cell).join("") || `<p class="empty-tip">这个位置还没有装饰。</p>`}</div>
         <p class="set-foot">穿的造型会自动保存，也会一起拍进相册。拖到哪个位置就穿哪个位置。星星来自小游戏、任务和默契测试。</p>`,
       onMount: (el) => {
         el.querySelectorAll("[data-slot]").forEach((b) => {

@@ -17,6 +17,33 @@
     return areas[areaId] || "";
   }
 
+  /* 环境里飞的小蝴蝶：花园最多，湖边少一点 */  function ambient(id) {
+    const el = document.getElementById("ambient");
+    if (!el) return;
+    el.innerHTML = "";
+    const count = { garden: 6, lake: 3, forest: 1, hut: 1 }[id] || 0;
+    const colors = ["#F7B267", "#F9D9A3", "#E98A5C", "#F4C7C3", "#EFE0A5"];
+    for (let i = 0; i < count; i++) {
+      const b = document.createElement("span");
+      b.className = "bfly";
+      b.style.left = (6 + Math.random() * 82) + "%";
+      b.style.top = (14 + Math.random() * 62) + "%";
+      b.style.setProperty("--dur", (10 + Math.random() * 9).toFixed(1) + "s");
+      b.style.setProperty("--wing", colors[i % colors.length]);
+      b.style.animationDelay = (-Math.random() * 12).toFixed(2) + "s";
+      b.innerHTML = `<svg viewBox="0 0 30 24" aria-hidden="true">
+        <g class="wings">
+          <path d="M14 12 C10 2, 1 1, 2 8 C3 14, 9 15, 13 14" fill="var(--wing, #F7B267)" stroke="rgba(90,60,25,.35)" stroke-width="1"/>
+          <path d="M16 12 C20 2, 29 1, 28 8 C27 14, 21 15, 17 14" fill="var(--wing, #F7B267)" stroke="rgba(90,60,25,.35)" stroke-width="1"/>
+          <path d="M14 13 C11 17, 6 20, 7 22 C9 24, 13 20, 15 16" fill="rgba(255,246,220,.9)" stroke="rgba(90,60,25,.3)" stroke-width="1"/>
+          <path d="M16 13 C19 17, 24 20, 23 22 C21 24, 17 20, 15 16" fill="rgba(255,246,220,.9)" stroke="rgba(90,60,25,.3)" stroke-width="1"/>
+        </g>
+        <ellipse cx="15" cy="13" rx="1.8" ry="7" fill="rgba(72,52,28,.85)"/>
+      </svg>`;
+      el.appendChild(b);
+    }
+  }
+
   function renderHotspots(area) {
     hotspotEl.innerHTML = "";
     (area.hotspots || []).forEach((spot, idx) => {
@@ -155,6 +182,8 @@
       M.state.scene = id;
       M.state.areas[id].visited = true;
       renderHotspots(area);
+      ambient(id);
+      if (M.pet && M.pet.stopChase) M.pet.stopChase();
       bgEl.classList.remove("is-out");
       busy = false;
 

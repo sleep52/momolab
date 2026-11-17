@@ -154,6 +154,7 @@
       play: () => M.interact.openPlay(),
       call: () => M.interact.callPet(),
       rest: () => M.interact.restPet(),
+      wand: () => M.interact.wand(),
       photo: () => M.interact.photo()
     };
     document.querySelectorAll("[data-action]").forEach((btn) => {
@@ -165,8 +166,47 @@
     });
 
     const petWrap = $("petWrap");
+    let holdT = null, holdIv = null, heldCount = 0, lastHoldAt = 0;
+
+    function stopHold() {
+      if (holdT) { clearTimeout(holdT); holdT = null; }
+      if (holdIv) { clearInterval(holdIv); holdIv = null; }
+    }
+
+    // 手机/触屏：按住不松手就是连摸，松手停下；比反复点更好按
+    petWrap.addEventListener("pointerdown", () => {
+      const stage = document.getElementById("stage");
+      if (stage && stage.classList.contains("is-wanding")) return;
+      heldCount = 0;
+      holdT = setTimeout(() => {
+        const tick = () => {
+          heldCount += 1;
+          M.interact.touchPet();
+          if (navigator.vibrate) navigator.vibrate(10);
+          if (heldCount === 4) { M.pet.burst("heart", 6); M.pet.say("呼噜……别停。", 2200); }
+          if (heldCount >= 9) {
+            stopHold();
+            M.pet.burst("heart", 10);
+            M.pet.say("这就够了呀，再摸我要睡着了。", 2600);
+            M.pet.setExpr("shy", 2400);
+          }
+        };
+        tick();
+        holdIv = setInterval(tick, 700);
+      }, 320);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => {
+      petWrap.addEventListener(ev, () => {
+        if (holdT || holdIv || heldCount) lastHoldAt = Date.now();
+        stopHold();
+      });
+    });
+
     petWrap.addEventListener("click", (e) => {
       e.stopPropagation();
+      const stage = document.getElementById("stage");
+      if (stage && stage.classList.contains("is-wanding")) return; // 逗猫棒开着的时候，点猫算挥棒不算摸摸
+      if (Date.now() - lastHoldAt < 400) return; // 刚撸完一串，这一下不重复算
       if (M.pet.blockClick && M.pet.blockClick()) return; // 刚拖拽完，不算摸摸
       M.interact.touchPet();
     });
@@ -191,6 +231,7 @@
     document.addEventListener("visibilitychange", () => { if (document.hidden) M.save(true); });
     window.addEventListener("pagehide", () => M.save(true));
     document.addEventListener("touchstart", () => M.audio.unlock(), { once: true, passive: true });
+    document.addEventListener("pointerdown", () => M.audio.unlock(), { once: true });
   }
 
   /* ---------- 启动 ---------- */
@@ -251,7 +292,10 @@
     bindActions();
     bindEvents();
     renderOpening();
-    showOpening();
+    // 从小游戏整页回来时直接进世界，不再过一遍开场
+    const resume = new URLSearchParams(location.search).get("resume") === "1";
+    if (resume && M.state.started) enterWorld();
+    else showOpening();
     M.save(true);
   }
 

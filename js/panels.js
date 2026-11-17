@@ -47,11 +47,6 @@
             <span class="ht-main"><b>默契测试</b><i>八道题，看看你有多懂她 · 最好 ${(M.state.quiz && M.state.quiz.best) || 0} 分</i></span>
             <span class="ht-arrow">${icon("next")}</span>
           </button>
-          <button class="hub-tool" data-open-wardrobe>
-            <span class="ht-ic">${icon("gem")}</span>
-            <span class="ht-main"><b>换装间</b><i>头部 / 颈部 / 身体，可以同时戴三件</i></span>
-            <span class="ht-arrow">${icon("next")}</span>
-          </button>
         </div>
         <div class="hub-note">
           <h4>进度</h4>
@@ -61,12 +56,17 @@
         el.querySelectorAll("[data-game]").forEach((btn) => {
           btn.addEventListener("click", () => {
             const id = btn.getAttribute("data-game");
+            const def = (C.minigames || []).find((g) => g.id === id);
             M.ui.closePanel();
+            if (def && def.page) {
+              M.save(true);
+              setTimeout(() => { location.href = def.page + "?id=" + id; }, 240);
+              return;
+            }
             setTimeout(() => M.games.open(id), 320);
           });
         });
         el.querySelector("[data-open-quiz]").addEventListener("click", () => M.quiz.open());
-        el.querySelector("[data-open-wardrobe]").addEventListener("click", () => M.dressup.open());
       }
     });
   }
@@ -200,6 +200,11 @@
   }
 
   /* ---------- 设置 ---------- */
+  function idleChip(key, label, cur) {
+    const on = (cur || "breathe") === key;
+    return `<button class="idle-chip ${on ? "on" : ""}" data-idle="${key}">${label}</button>`;
+  }
+
   function toggleRow(key, label, desc, value) {
     return `<div class="set-row">
       <div class="sr-main"><b>${label}</b><p>${desc}</p></div>
@@ -217,10 +222,28 @@
           ${toggleRow("music", "背景音乐", "很轻的环境音乐，关掉也不影响玩法", s.music)}
           ${toggleRow("sfx", "音效", "互动、收集和小游戏的反馈音", s.sfx)}
         </div>
+        ${M.outfit() ? `<div class="set-block">
+          <div class="set-row">
+            <div class="sr-main"><b>身上这套：${M.outfit().name}</b><p>换装间先收起来了，想让她恢复本来样子就点右边</p></div>
+            <button class="switch on" data-undress aria-label="脱下套装"><i></i></button>
+          </div>
+        </div>` : ""}
         <div class="set-block">
           <div class="set-row">
             <div class="sr-main"><b>画面粒子</b><p>关闭后可以减少低配设备的动画负担</p></div>
             <button class="switch ${s.quality !== "low" ? "on" : ""}" data-toggle="quality" aria-label="画面粒子"><i></i></button>
+          </div>
+        </div>
+        <div class="set-block">
+          <div class="set-row set-row-col">
+            <div class="sr-main"><b>待机动画</b><p>她闲着的时候怎么待着，可以自己挑一个</p></div>
+            <div class="idle-chips">
+              ${idleChip("breathe", "呼吸", s.idleAnim)}
+              ${idleChip("sway", "摇摆", s.idleAnim)}
+              ${idleChip("nap", "打盹", s.idleAnim)}
+              ${idleChip("lively", "活泼", s.idleAnim)}
+              ${idleChip("none", "不动", s.idleAnim)}
+            </div>
           </div>
         </div>
         <div class="set-block">
@@ -247,6 +270,31 @@
               M.audio.applySettings();
             }
             M.audio.sfx("tap");
+          });
+        });
+        const undress = el.querySelector("[data-undress]");
+        if (undress) undress.addEventListener("click", () => {
+          M.setSlot("outfit", M.equippedId("outfit"));
+          // 换装间关掉之后，小配饰也一起摘掉，别让它们单挂在身上像贴纸
+          ["head", "neck", "deco"].forEach((k) => {
+            if (M.state.equip && M.state.equip[k]) M.state.equip[k] = null;
+          });
+          M.save();
+          if (M.pet) M.pet.refreshDeco();
+          M.audio.sfx("tap");
+          M.toast("先让她素着，舒服点", "gold");
+          settings();
+        });
+        el.querySelectorAll("[data-idle]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const key = btn.getAttribute("data-idle");
+            el.querySelectorAll("[data-idle]").forEach((b) => b.classList.toggle("on", b === btn));
+            M.pet.setIdleStyle(key);
+            M.audio.sfx("tap");
+            const text = { breathe: "我先这样好好呼吸着", sway: "我轻轻晃一晃", nap: "那我眯一会儿", lively: "我精神得很", none: "我安安静静站着" };
+            M.pet.say(text[key] || "好呀", 2200);
+            if (key === "nap") M.pet.setExpr("sleepy", 3000);
+            else if (key === "lively") M.pet.setExpr("excited", 1600);
           });
         });
         el.querySelector("[data-open-pet]").addEventListener("click", () => pet());
@@ -291,10 +339,9 @@
             <div class="ph-list">
               <span><i>年龄</i><b>${C.petAge}</b></span>
               <span><i>生日</i><b>${C.petBirthday}</b></span>
-              <span><i>装饰</i><b>${eq.length ? eq.map((x) => x.def.name).join(" + ") : "没有佩戴"}</b></span>
+              <span><i>小收藏</i><b>${eq.length ? eq.map((x) => x.def.name).join(" + ") : "还没有"}</b></span>
             </div>
             <div class="ph-acts">
-              <button class="btn small primary" data-go-wardrobe>去换装间</button>
               <button class="btn small ghost" data-go-quiz>测默契</button>
             </div>
           </div>
@@ -309,7 +356,6 @@
           <div><b>${(M.state.quiz && M.state.quiz.best) || 0}</b><i>默契分数</i></div>
         </div>`,
       onMount: (el) => {
-        el.querySelector("[data-go-wardrobe]").addEventListener("click", () => M.dressup.open());
         el.querySelector("[data-go-quiz]").addEventListener("click", () => M.quiz.open());
       }
     });

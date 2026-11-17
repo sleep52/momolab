@@ -64,7 +64,7 @@
       M.ui.sheet({
         title: "喂食",
         subtitle: "口袋里没有零食了。去小游戏或任务里换一点回来。",
-        body: `<p class="empty-tip">小鱼干可以通过「寻找零食」获得，鸡肉条和罐头来自任务奖励。</p>`,
+        body: `<p class="empty-tip">小鱼干可以通过「喵了个喵」获得，鸡肉条和罐头来自任务奖励。</p>`,
         actions: [{ label: "去看看小游戏", primary: true, onClick: () => { M.ui.closeSheet(); M.app.openGames(); } }]
       });
       return;
@@ -230,8 +230,85 @@
     setTimeout(() => M.album.open(null, entry.id), 900);
   }
 
+  /* ---------- 逗猫棒 ---------- */
+  let wandState = null;
+
+  function stopWand() {
+    if (!wandState) return;
+    const { stage, el, onMove, onDown, timer } = wandState;
+    clearTimeout(timer);
+    stage.classList.remove("is-wanding");
+    stage.removeEventListener("pointermove", onMove);
+    stage.removeEventListener("pointerdown", onDown);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    wandState = null;
+  }
+
+  function wand() {
+    const stage = document.getElementById("stage");
+    if (!stage) return;
+    if (wandState) { stopWand(); M.pet.say("不玩啦？那我自己晒会儿太阳。", 2400); return; }
+
+    M.audio.unlock();
+    const el = document.createElement("div");
+    el.className = "wand-fly";
+    el.innerHTML = `<span class="wf-ball"></span><span class="wf-tail"></span>`;
+    stage.appendChild(el);
+    stage.classList.add("is-wanding");
+
+    let lastAt = 0, lastX = 50, hops = 0;
+    const move = (x, y) => {
+      el.style.left = x + "%";
+      el.style.top = y + "%";
+    };
+    move(60, 42);
+
+    const onMove = (e) => {
+      const r = stage.getBoundingClientRect();
+      const x = Math.max(4, Math.min(96, ((e.clientX - r.left) / r.width) * 100));
+      const y = Math.max(12, Math.min(78, ((e.clientY - r.top) / r.height) * 100));
+      move(x, y);
+      const now = Date.now();
+      if (now - lastAt > 520 && Math.abs(x - lastX) > 6) {
+        lastAt = now; lastX = x; hops += 1;
+        M.pet.walkTo(x, 520);
+        M.pet.action("play", 900);
+        M.pet.burst("heart", 3);
+        M.audio.sfx("pop");
+      }
+    };
+    const onDown = (e) => {
+      const r = stage.getBoundingClientRect();
+      const x = Math.max(4, Math.min(96, ((e.clientX - r.left) / r.width) * 100));
+      move(x, 40);
+      M.pet.walkTo(x, 460);
+      M.pet.action("play", 900);
+      M.pet.burst("heart", 5);
+      M.addAttr({ bond: 1, happy: 2 });
+      M.audio.sfx("pop");
+    };
+    stage.addEventListener("pointermove", onMove);
+    stage.addEventListener("pointerdown", onDown);
+
+    M.pet.setExpr("curious");
+    M.toast("逗猫棒开演了 · 移动鼠标让它在前面飞", "gold");
+
+    const timer = setTimeout(() => {
+      stopWand();
+      M.pet.setExpr("happy", 2200);
+      M.pet.say("抓不到，但玩得挺爽。", 3000);
+      M.addAttr({ bond: 3, happy: 6, vigor: -2 });
+      M.state.stats.play += 1;
+      M.bump("play", 1);
+      M.save();
+      M.emit("interact", { type: "wand", hops });
+    }, 15000);
+
+    wandState = { stage, el, onMove, onDown, timer };
+  }
+
   M.interact = {
     init(refs) { petWrap = refs.petWrap; flashEl = refs.flash; },
-    touchPet, callPet, restPet, openFeed, feed, openPlay, play, photo
+    touchPet, callPet, restPet, openFeed, feed, openPlay, play, photo, wand
   };
 })();

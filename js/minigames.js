@@ -1,6 +1,7 @@
 /* ============================================================
  * minigames.js · 小游戏中心
- * 四款小游戏：寻找零食 / 接住玩具（Canvas）/ 记忆翻牌 / 森林寻宝
+ * 七款小游戏：喵了个喵 / 接住玩具（Canvas）/ 记忆翻牌 / 森林寻宝
+ *             小猫快跑 / 小猫钓鱼 / 捉蝴蝶
  * 每款都有完整结算、最好成绩与奖励，可以重复游玩。
  * ============================================================ */
 (function () {
@@ -8,13 +9,13 @@
   const C = window.MOMO_CONFIG;
 
   const PROP = (n) => "assets/props/" + n + ".png";
-  const SNACK_IMGS = ["snack-fish", "snack-cookie", "snack-kibble", "snack-strips", "snack-toyfish"].map(PROP);
   const TOY_IMGS = ["snack-ball", "snack-dropball", "snack-toyfish", "prop-socks", "prop-gift", "prop-pillow"].map(PROP);
   const MEM_IMGS = ["snack-fish", "snack-cookie", "snack-kibble", "snack-strips", "snack-ball", "snack-toyfish", "prop-socks", "prop-gift"].map(PROP);
 
   let modal, stageEl, titleEl, subEl, hudEl, footEl, quitBtn;
   let cleanups = [];
   let currentId = null;
+  let exitHook = null;
   const imgCache = {};
 
   function preload(urls) {
@@ -86,7 +87,7 @@
       M.addCoins(coins);
       if (def && def.rewardItem) M.addItem(def.rewardItem, 1);
       M.audio.sfx("success");
-      M.pet.setExpr("excited", 1600);
+      if (M.pet) M.pet.setExpr("excited", 1600);
     } else {
       coins = 4;
       M.addCoins(coins);
@@ -123,11 +124,11 @@
       M.state.flags = M.state.flags || {};
       if (wins >= total && !M.state.flags.decoBeret) {
         M.state.flags.decoBeret = 1;
-        M.addItem("deco-beret", 1);
-        setTimeout(() => M.toast(`${total} 款小游戏都通关，她把贝雷帽戴上了`, "gold"), 900);
+        M.addItem("outfit-academy", 1);
+        setTimeout(() => M.toast(`${total} 款小游戏都通关，学院风套装到手`, "gold"), 900);
       }
       setTimeout(() => {
-        M.pet.burst("star", 6);
+        if (M.pet) M.pet.burst("star", 6);
         if (wins >= total) M.toast(`${total} 款小游戏都完成了，秘境的门开了`, "gold");
         else if (wins >= 2 && !M.areaUnlocked("lake")) M.toast("湖边的路开了", "gold");
       }, 600);
@@ -135,68 +136,532 @@
     M.ui.hud.update();
   }
 
-  /* ---------- 小游戏一：寻找零食 ---------- */
+  /* ---------- 小游戏一：喵了个喵（羊了个羊式小猫三消） ---------- */
+  const YX_IMGS = ["daze", "wink", "tilt", "laugh", "yawn", "eat-meow", "scared", "surprise"]
+    .map((n) => A.basePath + "tiles/" + n + ".png");
+  const YX_GW = 14, YX_GH = 10; // 牌堆网格：一张牌占 2×2 格，相邻层错半格
+  const YX_DIFF = {
+    easy: { name: "入门", types: 4, counts: [16, 12, 8], bonus: 120 },
+    normal: { name: "进阶", types: 6, counts: [20, 16, 12, 6], bonus: 180 },
+    hell: { name: "地狱", types: 8, counts: [26, 20, 15, 7, 4], bonus: 260 }
+  };
+  const YX_ICONS = {
+    undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.6 5.8 4.2 10.2l4.4 4.4"/><path d="M4.2 10.2h9.2a5.9 5.9 0 0 1 0 11.8H8.6"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.2V4.6"/><path d="M7.8 8.8 12 4.6l4.2 4.2"/><path d="M5 13v5.2a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V13"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.6 7.2h3.8l9.2 9.6h3.6"/><path d="M17.2 13.8l3 3-3 3"/><path d="M3.6 16.8h3.8l2.6-2.8"/><path d="M13.8 10l2.8-2.8h3.6"/><path d="M17.2 4.2l3 3-3 3"/></svg>'
+  };
+  const YX_LOCK = '<svg class="yx-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.4"/><path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7"/></svg>';
+
   function gameSnack() {
-    const TOTAL = 5, TIME = 60;
+    let diffKey = (M.state.flags && M.state.flags.yxDiff) || "normal";
+    const hellLocked = !((M.state.flags || {}).yxClear || {}).easy;
+    if (diffKey === "hell" && hellLocked) diffKey = "easy";
+    const D = YX_DIFF[diffKey] || YX_DIFF.normal;
+    let roundAlive = true;
+    cleanups.push(() => { roundAlive = false; });
+
     stageEl.innerHTML = `
       <div class="sg-scene" style="background-image:url('${C.sceneAssets.home}')"></div>
-      <div class="sg-shade"></div>
-      <div class="sg-layer"></div>
-      ${catBadge("curious", "sg-cat-bl")}
-      <div class="sg-hint">把藏在屋里的 ${TOTAL} 份零食都找出来，她在旁边盯着你</div>`;
-    const layer = stageEl.querySelector(".sg-layer");
-    const catEl = stageEl.querySelector(".sg-cat");
-    const positions = [];
-    const rnd = () => {
-      for (let tries = 0; tries < 60; tries++) {
-        const x = 10 + Math.random() * 80;
-        const y = 20 + Math.random() * 56;
-        if (positions.every((p) => Math.hypot(p.x - x, p.y - y) > 14)) { positions.push({ x, y }); return { x, y }; }
-      }
-      const p = { x: 10 + Math.random() * 80, y: 20 + Math.random() * 56 };
-      positions.push(p); return p;
-    };
+      <div class="sg-shade yx-shade"></div>
+      <div class="yx-wrap">
+        <div class="yx-board">
+          <div class="yx-diff" role="group" aria-label="难度">
+            ${Object.keys(YX_DIFF).map((k) => {
+              const lock = k === "hell" && hellLocked;
+              return `<button class="yx-diff-btn ${k === diffKey ? "is-on" : ""}${lock ? " is-locked" : ""}" data-diff="${k}"${lock ? ' aria-disabled="true" title="通关入门后解锁"' : ""}>${lock ? YX_LOCK : ""}${YX_DIFF[k].name}</button>`;
+            }).join("")}
+          </div>
+          <div class="yx-pile"></div>
+        </div>
+        <div class="yx-zone">
+          <div class="yx-shelf-row">
+            <span class="yx-shelf-label">移出区</span>
+            <div class="yx-shelf"><div class="yx-shelf-cell"></div><div class="yx-shelf-cell"></div><div class="yx-shelf-cell"></div></div>
+            ${catBadge("curious", "yx-cat")}
+          </div>
+          <div class="yx-bar">
+            <div class="yx-slots">${'<div class="yx-slot"></div>'.repeat(7)}</div>
+            <div class="yx-tray"></div>
+          </div>
+          <div class="yx-props">
+            <button class="yx-prop" data-prop="undo">${YX_ICONS.undo}<span>撤销</span><i class="yx-pn">1</i></button>
+            <button class="yx-prop" data-prop="out">${YX_ICONS.out}<span>移出</span><i class="yx-pn">1</i></button>
+            <button class="yx-prop" data-prop="shuffle">${YX_ICONS.shuffle}<span>洗牌</span><i class="yx-pn">1</i></button>
+            <button class="yx-prop yx-prop-ghost" data-prop="restart">${icon("restart")}<span>重开</span></button>
+          </div>
+        </div>
+      </div>`;
+    footEl.innerHTML = `<span class="play-tip">点没被压住的小猫牌收进槽位 · 三张相同自动消除 · 7 格塞满就输 · 清空整堆就赢</span>`;
 
-    let found = 0;
-    const spots = [];
-    for (let i = 0; i < TOTAL; i++) {
-      const p = rnd();
-      const img = SNACK_IMGS[i % SNACK_IMGS.length];
-      const btn = document.createElement("button");
-      btn.className = "snack-spot";
-      btn.style.left = p.x + "%";
-      btn.style.top = p.y + "%";
-      btn.style.animationDelay = (i * 0.2) + "s";
-      btn.innerHTML = `<span class="snack-halo"></span><img src="${img}" alt="">`;
-      btn.addEventListener("click", () => {
-        if (btn.classList.contains("found")) return;
-        btn.classList.add("found");
-        found += 1;
-        M.audio.sfx("coin");
-        setCat(catEl, found % 2 ? "laugh" : "excited", 1600);
-        if (found === Math.floor(TOTAL / 2)) catSays("她已经凑过来闻了，进度过半。");
-        hud(`<span class="ph-item">${icon("fish")} 已找到 <b>${found}/${TOTAL}</b></span>`);
-        if (found >= TOTAL) {
-          timer.stop();
-          setCat(catEl, "laugh");
-          finish({
-            win: true,
-            title: "零食全找到了",
-            subtitle: `还剩 ${timer.remain} 秒，她一直在旁边看着你翻。`,
-            score: found * 20 + timer.remain * 2
-          });
-        }
-      });
-      layer.appendChild(btn);
-      spots.push(btn);
+    const pile = stageEl.querySelector(".yx-pile");
+    const trayEl = stageEl.querySelector(".yx-tray");
+    const barEl = stageEl.querySelector(".yx-bar");
+    const shelfCells = Array.from(stageEl.querySelectorAll(".yx-shelf-cell"));
+    const catEl = stageEl.querySelector(".sg-cat");
+
+    /* ---- 工具 ---- */
+    const shuffleArr = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    function later(fn, ms) {
+      const id = setTimeout(() => { if (roundAlive) fn(); }, ms);
+      cleanups.push(() => clearTimeout(id));
+    }
+    function shake(el) {
+      el.animate([
+        { transform: "translateX(0)" }, { transform: "translateX(-5px)" },
+        { transform: "translateX(5px)" }, { transform: "translateX(-3px)" }, { transform: "translateX(0)" }
+      ], { duration: 280, easing: "ease" });
+    }
+    function flyClone(fromEl, from, to, done) {
+      const sr = stageEl.getBoundingClientRect();
+      const c = document.createElement("div");
+      c.className = "yx-fly " + ((fromEl.className.match(/yx-t\d/) || [""])[0]);
+      c.innerHTML = fromEl.innerHTML;
+      c.style.left = (from.left - sr.left) + "px";
+      c.style.top = (from.top - sr.top) + "px";
+      c.style.width = from.width + "px";
+      c.style.height = from.height + "px";
+      stageEl.appendChild(c);
+      const dx = to.left - from.left, dy = to.top - from.top;
+      const s = from.width > 0 ? to.width / from.width : 1;
+      const anim = c.animate([
+        { transform: "translate(0,0) scale(1)" },
+        { transform: `translate(${dx}px,${dy}px) scale(${s})` }
+      ], { duration: 250, easing: "cubic-bezier(.35,.7,.3,1)" });
+      anim.onfinish = () => { c.remove(); if (roundAlive) done(); };
+      cleanups.push(() => { try { anim.cancel(); } catch (e) {} c.remove(); });
+    }
+    function burst(r) {
+      if (document.body.classList.contains("low-fx")) return;
+      const sr = stageEl.getBoundingClientRect();
+      const cx = r.left - sr.left + r.width / 2, cy = r.top - sr.top + r.height / 2;
+      const colors = ["#E4C07E", "#F0B49B", "#8FAE87", "#FFF3DC"];
+      for (let i = 0; i < 7; i++) {
+        const p = document.createElement("span");
+        p.className = "yx-spark";
+        const a = Math.random() * Math.PI * 2, d = 26 + Math.random() * 38, sz = 4 + Math.random() * 4;
+        p.style.left = cx + "px"; p.style.top = cy + "px";
+        p.style.width = sz + "px"; p.style.height = sz + "px";
+        p.style.background = colors[i % colors.length];
+        stageEl.appendChild(p);
+        const an = p.animate([
+          { transform: "translate(-50%,-50%) scale(1)", opacity: 1 },
+          { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d - 14}px)) scale(.2)`, opacity: 0 }
+        ], { duration: 480 + Math.random() * 220, easing: "cubic-bezier(.2,.7,.3,1)" });
+        an.onfinish = () => p.remove();
+        cleanups.push(() => p.remove());
+      }
+    }
+    function floatText(r, text, big) {
+      const sr = stageEl.getBoundingClientRect();
+      const f = document.createElement("div");
+      f.className = "yx-float" + (big ? " is-big" : "");
+      f.textContent = text;
+      f.style.left = (r.left - sr.left + r.width / 2) + "px";
+      f.style.top = (r.top - sr.top) + "px";
+      stageEl.appendChild(f);
+      const an = f.animate([
+        { transform: "translate(-50%,0) scale(.8)", opacity: 0 },
+        { transform: "translate(-50%,-18px) scale(1)", opacity: 1, offset: .25 },
+        { transform: "translate(-50%,-46px) scale(1)", opacity: 0 }
+      ], { duration: 900, easing: "ease-out" });
+      an.onfinish = () => f.remove();
+      cleanups.push(() => f.remove());
     }
 
-    hud(`<span class="ph-item">${icon("fish")} 已找到 <b>0/${TOTAL}</b></span>`);
-    const timer = countdown(TIME, (r) => {
-      const t = hudEl.querySelector(".ph-time b");
-      if (t) t.textContent = r;
-      else hudEl.insertAdjacentHTML("beforeend", `<span class="ph-item ph-time">${icon("timer")} <b>${r}</b>s</span>`);
-    }, () => finish({ win: false, title: "时间到了", subtitle: "还有零食没找到，它们藏得挺深的。", score: found * 20 }));
+    /* ---- 生成牌堆：几何 → 剥离顺序 → 按三连分配类型，保证有解 ---- */
+    const tiles = [];
+    D.counts.forEach((need, layer) => {
+      const parity = layer % 2, margin = Math.floor(layer / 3);
+      const cells = [];
+      for (let gy = margin; gy <= YX_GH - 2 - margin; gy++) {
+        if (gy % 2 !== parity) continue;
+        for (let gx = margin; gx <= YX_GW - 2 - margin; gx++) {
+          if (gx % 2 !== parity) continue;
+          cells.push({ gx, gy, d: Math.hypot(gx + 1 - YX_GW / 2, gy + 1 - YX_GH / 2) + Math.random() * 3.2 });
+        }
+      }
+      cells.sort((a, b) => a.d - b.d);
+      cells.slice(0, need).forEach((c) => tiles.push({
+        id: tiles.length, gx: c.gx, gy: c.gy, layer, type: 0, state: "board", blockers: []
+      }));
+    });
+    tiles.forEach((t) => {
+      t.blockers = tiles.filter((o) => o.layer > t.layer && Math.abs(o.gx - t.gx) < 2 && Math.abs(o.gy - t.gy) < 2);
+    });
+    function peelOrder(list) {
+      const alive = new Set(list);
+      const out = [];
+      while (alive.size) {
+        const free = [];
+        alive.forEach((t) => { if (t.blockers.every((b) => !alive.has(b))) free.push(t); });
+        const pick = free[(Math.random() * free.length) | 0];
+        alive.delete(pick);
+        out.push(pick);
+      }
+      return out;
+    }
+    const dealOrder = peelOrder(tiles);
+    const bag = [];
+    for (let i = 0; i < dealOrder.length / 3; i++) bag.push(i % D.types);
+    shuffleArr(bag);
+    dealOrder.forEach((t, i) => { t.type = bag[(i / 3) | 0]; });
+
+    /* ---- 洗牌：在「槽位里已有的牌」约束下重新构造一个有解排列 ---- */
+    function solvableAssign(board, prefix) {
+      const supply0 = {};
+      board.forEach((t) => { supply0[t.type] = (supply0[t.type] || 0) + 1; });
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const order = peelOrder(board);
+        const supply = Object.assign({}, supply0);
+        const sim = prefix.slice();
+        const out = [];
+        let ok = true;
+        for (const t of order) {
+          const cnt = {};
+          sim.forEach((x) => { cnt[x] = (cnt[x] || 0) + 1; });
+          let best = -1, bestScore = -Infinity;
+          for (const k in supply) {
+            if (supply[k] <= 0) continue;
+            const c = cnt[k] || 0;
+            let s = c === 2 ? 100 : c === 1 ? 60 : (sim.length <= 4 ? 30 : sim.length <= 5 ? 8 : -50);
+            s += Math.random() * 24;
+            if (s > bestScore) { bestScore = s; best = +k; }
+          }
+          if (best < 0 || bestScore < 0) { ok = false; break; }
+          supply[best]--;
+          out.push(best);
+          let idx = -1;
+          for (let i = sim.length - 1; i >= 0; i--) if (sim[i] === best) { idx = i; break; }
+          if (idx >= 0) sim.splice(idx + 1, 0, best); else sim.push(best);
+          if (sim.filter((x) => x === best).length >= 3) {
+            for (let i = sim.length - 1; i >= 0; i--) if (sim[i] === best) sim.splice(i, 1);
+          }
+          if (sim.length >= 7) { ok = false; break; }
+        }
+        if (ok && sim.length === 0) return out;
+      }
+      return null;
+    }
+
+    /* ---- 渲染与布局 ---- */
+    let U = 30, OX = 0, OY = 0;
+    tiles.forEach((t) => {
+      const b = document.createElement("button");
+      b.className = "yx-tile yx-t" + t.type;
+      b.innerHTML = `<span class="yx-face"><img src="${YX_IMGS[t.type]}" alt="" draggable="false"></span>`;
+      b.setAttribute("aria-label", "小猫牌");
+      b.addEventListener("click", () => { if (t.state === "shelf") returnShelf(t); else pickTile(t); });
+      t.el = b;
+      pile.appendChild(b);
+    });
+    function placeBoardTile(t) {
+      const s = 2 * U;
+      t.el.style.left = (OX + t.gx * U) + "px";
+      t.el.style.top = (OY + t.gy * U) + "px";
+      t.el.style.width = s + "px";
+      t.el.style.height = s + "px";
+      t.el.style.zIndex = 10 + t.layer * 10;
+    }
+    function layoutBoard() {
+      const w = pile.clientWidth, h = pile.clientHeight;
+      if (!w || !h) return;
+      U = Math.max(10, Math.min(w / YX_GW, h / YX_GH));
+      OX = (w - YX_GW * U) / 2;
+      OY = (h - YX_GH * U) / 2;
+      tiles.forEach((t) => { if (t.state === "board") placeBoardTile(t); });
+    }
+    function trayMetrics() {
+      const gap = 6;
+      return { gap, slotW: Math.max(10, (trayEl.clientWidth - gap * 6) / 7) };
+    }
+    function layoutTray() {
+      const { slotW, gap } = trayMetrics();
+      tray.forEach((t, i) => {
+        t.el.style.left = (i * (slotW + gap)) + "px";
+        t.el.style.top = "0px";
+        t.el.style.width = slotW + "px";
+        t.el.style.height = "100%";
+        t.el.style.zIndex = 5;
+      });
+      shelfCells.forEach((cell) => { cell.style.width = slotW + "px"; });
+      shelf.forEach((t) => {
+        t.el.style.left = "2px"; t.el.style.top = "2px";
+        t.el.style.width = (slotW - 4) + "px"; t.el.style.height = "38px";
+        t.el.style.zIndex = 5;
+      });
+    }
+    function traySlotRect(i) {
+      const r = trayEl.getBoundingClientRect();
+      const { slotW, gap } = trayMetrics();
+      return { left: r.left + i * (slotW + gap), top: r.top, width: slotW, height: r.height };
+    }
+    const isFree = (t) => t.blockers.every((b) => b.state !== "board");
+    function refreshFree() {
+      tiles.forEach((t) => { if (t.state === "board") t.el.classList.toggle("is-blocked", !isFree(t)); });
+    }
+
+    /* ---- 对局状态 ---- */
+    let tray = [], shelf = [], history = [];
+    let score = 0, triples = 0, combo = 0, lastPop = 0;
+    const props = { undo: 1, out: 1, shuffle: 1 };
+    let locked = false;
+    const t0 = performance.now();
+    let firstSaid = false, halfSaid = false, dangerSaid = false, endSaid = false;
+
+    function updateHud() {
+      const left = tiles.filter((t) => t.state === "board").length;
+      const on = M.state.settings.music || M.state.settings.sfx;
+      hud(`<span class="ph-item">${icon("grid")} 剩余 <b>${left}</b></span><span class="ph-item">${icon("spark")} 已消 <b>${triples}</b></span><button class="ph-item ph-sound" aria-label="声音开关">${icon(on ? "sound" : "mute")}</button>`);
+      hudEl.querySelector(".ph-sound").addEventListener("click", () => {
+        const next = !(M.state.settings.music || M.state.settings.sfx);
+        M.setSetting("music", next);
+        M.setSetting("sfx", next);
+        M.audio.applySettings();
+        updateHud();
+      });
+    }
+    function syncProps() {
+      ["undo", "out", "shuffle"].forEach((k) => {
+        const btn = stageEl.querySelector(`[data-prop="${k}"]`);
+        btn.disabled = !props[k];
+        btn.querySelector(".yx-pn").textContent = props[k];
+      });
+    }
+    function trayInsert(t) {
+      let idx = -1;
+      for (let i = tray.length - 1; i >= 0; i--) if (tray[i].type === t.type) { idx = i; break; }
+      if (idx >= 0) tray.splice(idx + 1, 0, t); else tray.push(t);
+      layoutTray();
+    }
+    function checkWin() {
+      const left = tiles.some((t) => t.state === "board" || t.state === "flying");
+      if (!left && tray.length === 0 && shelf.length === 0) {
+        locked = true;
+        setCat(catEl, "laugh");
+        const secs = Math.round((performance.now() - t0) / 1000);
+        const propsLeft = props.undo + props.out + props.shuffle;
+        score += D.bonus + propsLeft * 25;
+        const flags = (M.state.flags = M.state.flags || {});
+        const clear = (flags.yxClear = flags.yxClear || {});
+        const firstEasy = diffKey === "easy" && !clear.easy;
+        clear[diffKey] = true;
+        M.save();
+        if (firstEasy) setTimeout(() => M.toast("地狱难度解锁了，敢试试吗？", "gold"), 1100);
+        later(() => finish({
+          win: true,
+          title: "小猫堆清空了！",
+          subtitle: `${D.name} · 消了 ${triples} 组 · 用时 ${secs} 秒${propsLeft ? " · 道具剩余加成" : ""}${firstEasy ? " · 地狱已解锁" : ""}`,
+          score
+        }), 420);
+      } else if (!left && (tray.length || shelf.length) && !endSaid) {
+        endSaid = true;
+        M.toast("堆清空了！把槽里的配成三张就赢", "gold");
+      }
+    }
+    function popTriple(list) {
+      const now = performance.now();
+      combo = now - lastPop < 5000 ? combo + 1 : 1;
+      lastPop = now;
+      triples += 1;
+      const gain = 30 + Math.min(50, (combo - 1) * 10);
+      score += gain;
+      let firstR = null;
+      list.forEach((t) => {
+        t.state = "gone";
+        tray.splice(tray.indexOf(t), 1);
+        const r = t.el.getBoundingClientRect();
+        if (!firstR) firstR = r;
+        burst(r);
+        t.el.classList.add("is-pop");
+        later(() => t.el.remove(), 340);
+      });
+      layoutTray();
+      barEl.classList.toggle("is-danger", tray.length === 6);
+      floatText(firstR, `+${gain}${combo > 1 ? ` 连击×${combo}` : ""}`, combo > 1);
+      M.audio.sfx(combo > 1 ? "happy" : "coin");
+      if (!firstSaid) { firstSaid = true; setCat(catEl, "laugh", 1600); M.toast("三张一样的，消掉了！她很得意"); }
+      else if (combo >= 3) setCat(catEl, "excited", 1500);
+      else setCat(catEl, "happy", 1300);
+      if (!halfSaid && triples * 3 >= tiles.length / 2) {
+        halfSaid = true;
+        later(() => M.toast("过半了，她开始扒拉你的手"), 1100);
+      }
+      updateHud();
+      checkWin();
+    }
+    function lose() {
+      locked = true;
+      barEl.classList.remove("is-danger");
+      barEl.classList.add("is-full");
+      shake(barEl);
+      setCat(catEl, "excited");
+      later(() => finish({
+        win: false,
+        title: "槽位满了",
+        subtitle: `消了 ${triples} 组，堆里还剩 ${tiles.filter((t) => t.state === "board").length} 张。下次先消压在最上面的。`,
+        score
+      }), 650);
+    }
+    function afterTrayChange(t) {
+      if (locked) return;
+      layoutTray();
+      const same = tray.filter((x) => x.type === t.type);
+      if (same.length >= 3) { popTriple(same.slice(0, 3)); return; }
+      barEl.classList.toggle("is-danger", tray.length === 6);
+      if (tray.length >= 7) { lose(); return; }
+      if (tray.length === 6 && !dangerSaid) {
+        dangerSaid = true;
+        setCat(catEl, "excited", 1800);
+        M.toast("槽快满了，先消一组！", "warn");
+      }
+      checkWin();
+    }
+    function pickTile(t) {
+      if (locked || t.state !== "board") return;
+      if (!isFree(t)) { shake(t.el); M.audio.sfx("soft"); return; }
+      if (tray.length >= 7) { shake(barEl); M.audio.sfx("soft"); return; }
+      t.state = "flying";
+      history.push(t);
+      const from = t.el.getBoundingClientRect();
+      t.el.style.visibility = "hidden";
+      trayEl.appendChild(t.el);
+      trayInsert(t);
+      refreshFree();
+      updateHud();
+      M.audio.sfx("tap");
+      flyClone(t.el, from, traySlotRect(tray.indexOf(t)), () => {
+        t.state = "tray";
+        t.el.style.visibility = "";
+        afterTrayChange(t);
+      });
+    }
+    function returnShelf(t) {
+      if (locked || t.state !== "shelf") return;
+      if (tray.length >= 7) { shake(barEl); M.audio.sfx("soft"); M.toast("槽满了，先消一组", "warn"); return; }
+      shelf.splice(shelf.indexOf(t), 1);
+      t.state = "flying";
+      const from = t.el.getBoundingClientRect();
+      t.el.style.visibility = "hidden";
+      trayEl.appendChild(t.el);
+      trayInsert(t);
+      updateHud();
+      M.audio.sfx("tap");
+      flyClone(t.el, from, traySlotRect(tray.indexOf(t)), () => {
+        t.state = "tray";
+        t.el.style.visibility = "";
+        afterTrayChange(t);
+      });
+    }
+    function doUndo() {
+      if (locked || !props.undo) return;
+      let t = null;
+      for (let i = history.length - 1; i >= 0; i--) if (history[i].state === "tray") { t = history[i]; break; }
+      if (!t) { M.toast("没有能撤销的牌", "warn"); return; }
+      props.undo = 0; syncProps();
+      tray.splice(tray.indexOf(t), 1);
+      t.state = "flying";
+      const from = t.el.getBoundingClientRect();
+      t.el.style.visibility = "hidden";
+      pile.appendChild(t.el);
+      placeBoardTile(t);
+      layoutTray();
+      barEl.classList.toggle("is-danger", tray.length === 6);
+      updateHud();
+      M.audio.sfx("soft");
+      flyClone(t.el, from, t.el.getBoundingClientRect(), () => {
+        t.state = "board";
+        t.el.style.visibility = "";
+        refreshFree();
+        updateHud();
+      });
+    }
+    function doOut() {
+      if (locked || !props.out) return;
+      if (shelf.length) { M.toast("移出区满了，点牌可以放回去", "warn"); return; }
+      const movable = tray.filter((t) => t.state === "tray").slice(0, 3);
+      if (!movable.length) { M.toast("槽里没有能移出的牌", "warn"); return; }
+      props.out = 0; syncProps();
+      movable.forEach((t, i) => {
+        tray.splice(tray.indexOf(t), 1);
+        shelf.push(t);
+        t.state = "flying";
+        const from = t.el.getBoundingClientRect();
+        t.el.style.visibility = "hidden";
+        shelfCells[i].appendChild(t.el);
+        layoutTray();
+        flyClone(t.el, from, t.el.getBoundingClientRect(), () => {
+          t.state = "shelf";
+          t.el.style.visibility = "";
+        });
+      });
+      layoutTray();
+      barEl.classList.toggle("is-danger", tray.length === 6);
+      updateHud();
+      M.audio.sfx("soft");
+      setCat(catEl, "curious", 1500);
+    }
+    function doShuffle() {
+      if (locked || !props.shuffle) return;
+      const board = tiles.filter((t) => t.state === "board");
+      if (board.length < 3) { M.toast("没剩几张牌了，不用洗", "warn"); return; }
+      const assign = solvableAssign(board, tray.concat(shelf).map((t) => t.type));
+      if (!assign) { M.toast("这堆暂时洗不动，先消几组", "warn"); return; }
+      props.shuffle = 0; syncProps();
+      board.forEach((t, i) => {
+        t.type = assign[i];
+        const img = t.el.querySelector("img");
+        later(() => { img.src = YX_IMGS[t.type]; }, 180);
+        t.el.animate([
+          { transform: "scale(1) rotate(0deg)" },
+          { transform: "scale(.72) rotate(180deg)" },
+          { transform: "scale(1) rotate(360deg)" }
+        ], { duration: 400, easing: "ease", delay: Math.random() * 140 });
+      });
+      M.audio.sfx("splash");
+      setCat(catEl, "curious", 1600);
+      M.toast("小猫堆重新摆好了，照样有解");
+    }
+
+    /* ---- 接线 ---- */
+    stageEl.querySelector('[data-prop="undo"]').addEventListener("click", doUndo);
+    stageEl.querySelector('[data-prop="out"]').addEventListener("click", doOut);
+    stageEl.querySelector('[data-prop="shuffle"]').addEventListener("click", doShuffle);
+    stageEl.querySelector('[data-prop="restart"]').addEventListener("click", () => { M.audio.sfx("tap"); start(currentId); });
+    stageEl.querySelectorAll("[data-diff]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const k = btn.getAttribute("data-diff");
+        if (k === diffKey) return;
+        if (k === "hell" && !((M.state.flags || {}).yxClear || {}).easy) {
+          shake(btn); M.audio.sfx("soft");
+          M.toast("先通关「入门」，才能挑战地狱", "warn");
+          return;
+        }
+        M.state.flags = M.state.flags || {};
+        M.state.flags.yxDiff = k;
+        M.save();
+        M.toast(`已切换「${YX_DIFF[k].name}」，重新发牌`, "gold");
+        start(currentId);
+      });
+    });
+    const relayout = () => { layoutBoard(); layoutTray(); };
+    window.addEventListener("resize", relayout);
+    cleanups.push(() => window.removeEventListener("resize", relayout));
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(relayout);
+      ro.observe(pile); ro.observe(barEl);
+      cleanups.push(() => ro.disconnect());
+    }
+
+    layoutBoard(); refreshFree(); layoutTray(); syncProps(); updateHud();
+    if (!document.body.classList.contains("low-fx")) {
+      tiles.forEach((t) => {
+        t.el.animate([
+          { opacity: 0, transform: "scale(.4)" },
+          { opacity: 1, transform: "scale(1)" }
+        ], { duration: 300, delay: (D.counts.length - 1 - t.layer) * 90 + Math.random() * 140, easing: "cubic-bezier(.2,.9,.3,1.25)", fill: "backwards" });
+      });
+    }
+    later(() => M.toast("点没被压住的小猫，三张相同自动消除"), 500);
   }
 
   /* ---------- 小游戏二：接住玩具（Canvas） ---------- */
@@ -433,7 +898,7 @@
           } else {
             locked = true;
             const [x, y] = open;
-            setCat(catEl, "proud", 1400);
+            setCat(catEl, "laugh", 1400);
             setTimeout(() => {
               x.classList.remove("is-open"); y.classList.remove("is-open");
               open = []; locked = false;
@@ -521,14 +986,14 @@
         }
         hud(`<span class="ph-item">${icon("chest")} 线索 <b>${round + 1}/3</b></span>`);
         setClue(round);
-        M.pet.say("猜对了。下一条线索是：" + rounds[round].clue, 4200);
+        if (M.pet) M.pet.say("猜对了。下一条线索是：" + rounds[round].clue, 4200);
       } else {
         btn.classList.add("shake");
         setTimeout(() => btn.classList.remove("shake"), 500);
         M.audio.sfx("fail");
-        setCat(catEl, "proud", 1500);
+        setCat(catEl, "laugh", 1500);
         timer.add(-8);
-        M.pet.say("不是" + spot.label + "。再看一眼线索。", 2200);
+        if (M.pet) M.pet.say("不是" + spot.label + "。再看一眼线索。", 2200);
       }
     }
 
@@ -1152,7 +1617,201 @@
     });
   }
 
-  const IMPL = { snack: gameSnack, catch: gameCatch, memory: gameMemory, treasure: gameTreasure, run: gameRun, fish: gameFish };
+  /* ---------- 小游戏七：捉蝴蝶（Canvas） ---------- */
+  function gameButterfly() {
+    const TIME = 30, TARGET = 6;
+    stageEl.innerHTML = `<canvas class="sg-canvas"></canvas><div class="sg-hint">点/按蝴蝶就能扑住它 · 别让它飞走</div>`;
+    const cv = stageEl.querySelector("canvas");
+    const ctx = cv.getContext("2d");
+    const W = 900, H = 1125;
+    cv.width = W; cv.height = H;
+
+    hud(`<span class="ph-item">${icon("butterfly")} 捉到 <b>0</b></span>`);
+
+    const state = {
+      flies: [], particles: [], caught: 0, score: 0, escaped: 0,
+      catX: W / 2, catY: H - 210, lunge: 0, lungeTo: null,
+      elapsed: 0, spawnAt: 0, running: true
+    };
+
+    preload([C.sceneAssets.garden, catSrc("happy"), catSrc("focus"), catSrc("laugh")]).then(() => {
+      const bgImg = imgCache[C.sceneAssets.garden];
+      const happyImg = imgCache[catSrc("happy")];
+      const focusImg = imgCache[catSrc("focus")];
+      const laughImg = imgCache[catSrc("laugh")];
+
+      function spawn() {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        state.flies.push({
+          x: side < 0 ? -40 : W + 40,
+          y: 200 + Math.random() * (H - 560),
+          vx: -side * (70 + Math.random() * 60 + state.elapsed * 4),
+          vy: (Math.random() - 0.5) * 70,
+          amp: 24 + Math.random() * 26,
+          freq: 1.2 + Math.random() * 1.4,
+          phase: Math.random() * 6.28,
+          hue: 20 + Math.random() * 300,
+          size: 26 + Math.random() * 12,
+          t: 0, alive: true
+        });
+      }
+
+      function drawBg() {
+        if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
+        else { ctx.fillStyle = "#EAF0DC"; ctx.fillRect(0, 0, W, H); }
+        const soft = ctx.createLinearGradient(0, 0, 0, H);
+        soft.addColorStop(0, "rgba(255,255,255,0.18)");
+        soft.addColorStop(0.6, "rgba(255,255,255,0)");
+        soft.addColorStop(1, "rgba(120,140,90,0.18)");
+        ctx.fillStyle = soft;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      function drawFly(f) {
+        const flap = Math.abs(Math.sin(f.t * 9 + f.phase));
+        const w = f.size * (0.45 + flap * 0.55);
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(Math.sin(f.t * 2 + f.phase) * 0.18);
+        const hue = f.hue;
+        ctx.fillStyle = `hsla(${hue}, 74%, 72%, 0.95)`;
+        ctx.beginPath();
+        ctx.ellipse(-w * 0.62, -4, w, f.size * 0.9, -0.35, 0, 7);
+        ctx.ellipse(w * 0.62, -4, w, f.size * 0.9, 0.35, 0, 7);
+        ctx.fill();
+        ctx.fillStyle = `hsla(${hue}, 82%, 60%, 0.95)`;
+        ctx.beginPath();
+        ctx.ellipse(-w * 0.5, f.size * 0.42, w * 0.7, f.size * 0.6, 0.25, 0, 7);
+        ctx.ellipse(w * 0.5, f.size * 0.42, w * 0.7, f.size * 0.6, -0.25, 0, 7);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(58,38,18,0.85)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, -f.size * 0.5); ctx.lineTo(-8, -f.size * 1.05);
+        ctx.moveTo(0, -f.size * 0.5); ctx.lineTo(8, -f.size * 1.05);
+        ctx.stroke();
+        // 身体：细长椭圆 + 一点毛绒高光，别看成气球
+        ctx.fillStyle = "rgba(58,38,18,0.92)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, f.size * 0.11, f.size * 0.56, 0, 0, 7);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,246,226,0.5)";
+        ctx.beginPath();
+        ctx.ellipse(-f.size * 0.03, -f.size * 0.14, f.size * 0.035, f.size * 0.3, 0, 0, 7);
+        ctx.fill();
+        // 翅膀上的小斑点
+        ctx.fillStyle = "rgba(255,252,240,0.72)";
+        ctx.beginPath();
+        ctx.arc(-w * 0.55, -4, f.size * 0.1, 0, 7);
+        ctx.arc(w * 0.55, -4, f.size * 0.1, 0, 7);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawCat() {
+        // 扑的时候前倾一点，落地时晃一下
+        const img = state.lunge > 0.16 ? focusImg : (state.parted > 0 ? laughImg : happyImg);
+        const size = 300;
+        const lean = state.lunge * 0.34 * (state.lungeTo && state.lungeTo.x < state.catX ? -1 : 1);
+        ctx.save();
+        ctx.translate(state.catX, state.catY - state.lunge * 70);
+        ctx.rotate(lean);
+        if (img) ctx.drawImage(img, -size / 2, -size, size, size);
+        ctx.restore();
+      }
+
+      cv.addEventListener("pointerdown", (e) => {
+        if (!state.running) return;
+        const r = cv.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * W;
+        const y = ((e.clientY - r.top) / r.height) * H;
+        state.catX = Math.min(W * 0.68, Math.max(W * 0.32, state.catX + (x - state.catX) * 0.28));
+        state.lungeTo = { x, y };
+        state.lunge = 1;
+        let hit = null;
+        state.flies.forEach((f) => {
+          if (!f.alive) return;
+          if (Math.hypot(f.x - x, f.y - y) < f.size * 1.25 + 26) hit = f;
+        });
+        if (hit) {
+          hit.alive = false;
+          state.caught += 1;
+          state.score += 10;
+          state.parted = 0.6;
+          M.audio.sfx("coin");
+          for (let i = 0; i < 9; i++) {
+            state.particles.push({
+              x: hit.x, y: hit.y,
+              vx: (Math.random() - 0.5) * 220, vy: -Math.random() * 200 - 30,
+              life: 0.7, size: 4 + Math.random() * 5, hue: hit.hue
+            });
+          }
+          hud(`<span class="ph-item">${icon("butterfly")} 捉到 <b>${state.caught}/${TARGET}</b></span><span class="ph-item">${icon("star")} <b>${state.score}</b></span>`);
+          if (state.caught >= TARGET) {
+            state.running = false;
+            setTimeout(() => finish({ win: true, title: "全捉住了", subtitle: "她追得有点上头，爪子都舍不得收。", score: state.score + TIME }),
+              600);
+          }
+        } else {
+          state.score = Math.max(0, state.score - 1);
+          M.audio.sfx("tap");
+        }
+      });
+
+      countdown(TIME, (r) => {
+        hud(`<span class="ph-item">${icon("butterfly")} 捉到 <b>${state.caught}/${TARGET}</b></span><span class="ph-item">${icon("star")} <b>${state.score}</b></span><span class="ph-item ph-time">${icon("timer")} <b>${r}</b>s</span>`);
+      }, () => {
+        state.running = false;
+        finish({ win: state.caught >= TARGET, title: state.caught >= TARGET ? "手很快" : "它们飞走了", subtitle: state.caught >= TARGET ? "花园里的蝴蝶都被她记住了。" : `只捉到 ${state.caught} 只，再来一次试试。`, score: state.score + state.caught * 8 });
+      });
+
+      let last = performance.now();
+      state.parted = 0;
+      function frame(now) {
+        if (!state.running) return;
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        state.elapsed += dt;
+        state.lunge = Math.max(0, state.lunge - dt * 3.4);
+        state.parted = Math.max(0, state.parted - dt);
+
+        if (state.elapsed * 1000 > state.spawnAt && state.flies.filter((f) => f.alive).length < 5) {
+          spawn();
+          state.spawnAt += Math.max(420, 1000 - state.elapsed * 12);
+        }
+
+        drawBg();
+
+        state.flies.forEach((f) => {
+          f.t += dt;
+          f.x += f.vx * dt;
+          f.y += f.vy * dt + Math.sin(f.t * f.freq + f.phase) * f.amp * dt * 2.2;
+          if (f.y < 130) f.vy = Math.abs(f.vy);
+          if (f.y > H - 470) f.vy = -Math.abs(f.vy);
+          if (f.alive) drawFly(f);
+          if (f.x < -80 || f.x > W + 80) {
+            f.alive = false;
+            if (f.x < -80 || f.x > W + 80) state.escaped += 1;
+          }
+        });
+
+        state.particles.forEach((p) => {
+          p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 220 * dt; p.life -= dt;
+          ctx.globalAlpha = Math.max(0, p.life / 0.7);
+          ctx.fillStyle = `hsl(${p.hue || 40}, 80%, 62%)`;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+        state.particles = state.particles.filter((p) => p.life > 0);
+
+        drawCat();
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  const IMPL = { snack: gameSnack, catch: gameCatch, memory: gameMemory, treasure: gameTreasure, run: gameRun, fish: gameFish, butterfly: gameButterfly };
 
   /* ---------- 打开 / 关闭 ---------- */
   function start(id) {
@@ -1182,13 +1841,14 @@
 
   function close() {
     cleanup();
+    if (exitHook) { M.audio.sfx("close"); exitHook(); return; }
     modal.classList.remove("open");
     modal.setAttribute("aria-hidden", "true");
     stageEl.innerHTML = "";
     currentId = null;
     M.audio.sfx("close");
     M.ui.hud.update();
-    if (M.world.current) M.world.refresh();
+    if (M.world && M.world.current) M.world.refresh();
   }
 
   M.games = {
@@ -1202,6 +1862,7 @@
       });
     },
     open, close, start,
+    setExit(fn) { exitHook = fn; },
     get current() { return currentId; }
   };
 })();

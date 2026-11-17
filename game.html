@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2E2114">
+  <meta name="description" content="Momolab 小游戏 · 整页游玩">
+  <title>小游戏 · Momolab</title>
+  <link rel="icon" href="assets/img/ui/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/game-page.css">
+</head>
+<body class="game-page">
+
+  <div id="gpBg" class="gp-bg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <!-- ===== 整页小游戏 ===== -->
+  <section id="playModal" class="play-modal open" aria-hidden="false">
+    <div class="play-shell">
+      <header class="play-head">
+        <button id="playQuit" aria-label="回到小屋"><span data-icon="back"></span><i>回到小屋</i></button>
+        <div class="play-titles">
+          <h2 id="playTitle"></h2>
+          <p id="playSub"></p>
+        </div>
+        <div class="gp-meta">
+          <span id="gpCoins" class="gp-coins" title="星星"></span>
+          <div id="playHud" class="play-hud"></div>
+        </div>
+      </header>
+      <div id="playStage" class="play-stage"></div>
+      <div id="playFoot" class="play-foot"></div>
+    </div>
+  </section>
+
+  <!-- ui.js 需要的层（整页版用不到面板，但保留接口一致） -->
+  <section id="panelLayer" class="panel-layer" aria-hidden="true"><div id="panel" class="panel" role="dialog" aria-modal="true"></div></section>
+  <section id="sheetLayer" class="sheet-layer" aria-hidden="true"><div id="sheet" class="sheet" role="dialog" aria-modal="true"></div></section>
+  <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
+
+  <script src="assets/config/game-config.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/game-page.js"></script>
+</body>
+</html>

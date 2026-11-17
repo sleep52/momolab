@@ -105,7 +105,7 @@
         </div>
         <div class="hud-meta">
           <span class="hud-coins">${icon("star")}<b>${M.state.coins || 0}</b></span>
-          <span class="hud-deco">${eq.length ? "已佩戴 · " + eq.map((x) => x.def.name).join(" + ") : "未佩戴装饰"}</span>
+          <span class="hud-deco">${eq.length ? "小收藏 · " + eq.map((x) => x.def.name).join(" + ") : "干干净净的本猫"}</span>
         </div>
       </div>`;
     const petBtn = hudEl.querySelector("[data-open-pet]");

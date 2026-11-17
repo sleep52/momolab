@@ -14,14 +14,19 @@
   let currentExpr = "idle";
   let dragBlock = false, stageEl = null;
 
+  // 待机那张脸：默认用温和的 happy，不用立绘里那张“没什么表情”的脸
+  const IDLE_FACE = "idle";
+
   function src(name) {
-    const file = (A.states && A.states[name]) || A.states.idle;
+    const face = name === "idle" ? IDLE_FACE : name;
+    const file = (A.states && A.states[face]) ? A.states[face] : A.states[IDLE_FACE];
     return A.basePath + file;
   }
 
   // 头部裁切图：与立绘同坐标，盖在颈部装饰上，让围巾“塞进”下巴下面
   function headSrc(name) {
-    const file = (A.states && A.states[name]) || A.states.idle;
+    const face = name === "idle" ? IDLE_FACE : name;
+    const file = (A.states && A.states[face]) ? A.states[face] : A.states[IDLE_FACE];
     return A.basePath + "layers/" + file.replace(/\.png$/i, "") + "__head.png";
   }
 
@@ -40,14 +45,20 @@
   }
   M.petLine = line;
 
+  // 穿了整装就直接用「已经穿好」的整张图当身体，脸还是由头部图层来给
+  function baseSrc(real) {
+    const o = (M.outfit && M.outfit()) || null;
+    return o && o.img ? o.img : src(real);
+  }
+
   function setExpr(name, holdMs) {
     if (!actor) return;
     const real = (A.states && A.states[name]) ? name : "idle";
     const token = ++exprToken;
     currentExpr = real;
     actor.classList.add("expr-swap");
-    actor.src = src(real);
-    if (headEl) headEl.src = headSrc(real);
+    actor.src = baseSrc(real);
+    applyHead(real);
     setTimeout(() => actor && actor.classList.remove("expr-swap"), 220);
     if (holdMs) {
       setTimeout(() => {
@@ -117,6 +128,28 @@
       fxF.appendChild(el);
       setTimeout(() => el.remove(), 2600);
     }
+  }
+
+  /* ---------- 待机动画：用户可以自己选她闲着时怎么待着 ---------- */
+  const IDLE_STYLES = ["breathe", "sway", "nap", "lively", "none"];
+
+  function idleStyle() {
+    const s = (M.state.settings && M.state.settings.idleAnim) || "breathe";
+    return IDLE_STYLES.indexOf(s) >= 0 ? s : "breathe";
+  }
+
+  function applyIdleStyle() {
+    if (!wrap) return;
+    IDLE_STYLES.forEach((k) => wrap.classList.remove("idle-" + k));
+    const s = idleStyle();
+    if (s !== "none") wrap.classList.add("idle-" + s);
+  }
+
+  function setIdleStyle(key) {
+    if (!M.state.settings) M.state.settings = {};
+    M.state.settings.idleAnim = IDLE_STYLES.indexOf(key) >= 0 ? key : "breathe";
+    M.save();
+    applyIdleStyle();
   }
 
   function refreshDeco() {
@@ -200,11 +233,14 @@
     if (!def) return null;
     const slot = def.slot || "neck";
     const now = M.setSlot(slot, id);
+    if (def.outfit && actor) {
+      actor.src = now ? def.img : src(currentExpr);
+    }
     refreshDeco();
     if (now) {
-      action("shy", 1200);
-      setExpr("proud", 1800);
-      say("戴上之后，她照了好一会儿镜子。");
+      action(def.outfit ? "happy" : "shy", 1200);
+      setExpr(def.outfit ? "laugh" : "shy", 1800);
+      say(def.outfit ? "这套一上身，她连走路都换了姿势。" : "戴上之后，她照了好一会儿镜子。");
       M.audio.sfx("happy");
     } else {
       say("她把" + def.name + "拱到一边，还是喜欢身上什么都不挂。");
@@ -218,22 +254,112 @@
     return list[Math.floor(Math.random() * list.length)];
   }
 
+  /* 花园里自己追蝴蝶：小跑过去 → 抬爪拍 → 扑空或扑中 */
+  let chaseToken = 0, chaseTimers = [];
+
+  function clearChaseTimers() { chaseTimers.forEach(clearTimeout); chaseTimers = []; }
+
+  function stopChase() {
+    chaseToken += 1;
+    clearChaseTimers();
+    if (wrap) wrap.classList.remove("is-chasing");
+  }
+
+  function later(fn, ms, token) {
+    const t = setTimeout(() => { if (token === chaseToken) fn(); }, ms);
+    chaseTimers.push(t);
+    return t;
+  }
+
+  /* 沿着地面小跑过去（不是瞬移）：从当前位置缓动到目标百分比 */
+  function runTo(xPct, ms, token, done) {
+    if (!wrap || !stageEl) return;
+    const sr = stageEl.getBoundingClientRect();
+    const w = wrap.getBoundingClientRect().width;
+    const start = ((parseFloat(wrap.style.left) || sr.width / 2) ) / sr.width * 100;
+    const to = Math.max(w / sr.width * 50, Math.min(100 - w / sr.width * 50, xPct));
+    const y = M.state.petPos ? M.state.petPos.y : 25;
+    const t0 = performance.now();
+    action("walk", ms + 120);
+    const step = (now) => {
+      if (token !== chaseToken) return;
+      const k = Math.min(1, (now - t0) / ms);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      applyPos(start + (to - start) * e, y);
+      if (k < 1) requestAnimationFrame(step);
+      else done && done();
+    };
+    requestAnimationFrame(step);
+  }
+
+  function chaseButterflies() {
+    if (!stageEl || !wrap) return;
+    const ambient = stageEl.querySelector(".ambient");
+    if (!ambient) return;
+    if (wrap.classList.contains("is-chasing")) return;
+
+    const token = ++chaseToken;
+    wrap.classList.add("is-chasing");
+    setExpr("curious", 3200);
+    say("蝴蝶又来了，她先把身子压低。", 2400);
+
+    const stageRect = stageEl.getBoundingClientRect();
+    const targets = Array.from(ambient.querySelectorAll(".bfly")).slice(0, 3);
+    let i = 0;
+
+    const next = () => {
+      if (token !== chaseToken) return;
+      if (i >= targets.length) {
+        wrap.classList.remove("is-chasing");
+        setExpr("happy", 2000);
+        startIdle();
+        return;
+      }
+      const b = targets[i++];
+      if (!b || !b.parentNode) return next();
+      const r = b.getBoundingClientRect();
+      const raw = ((r.left + r.width / 2) - stageRect.left) / stageRect.width * 100;
+      const xPct = Math.max(46, Math.min(74, raw));
+      const cur = (parseFloat(wrap.style.left) || stageRect.width / 2) / stageRect.width * 100;
+      const ms = Math.min(1100, 260 + Math.abs(cur - xPct) * 22);
+
+      runTo(xPct, ms, token, () => {
+        if (token !== chaseToken) return;
+        action("play", 900);
+        const hit = Math.random() < 0.5;
+        if (hit) {
+          burst("heart", 5);
+          setExpr("laugh", 1600);
+          b.style.transition = "transform .7s ease-out, opacity .7s";
+          b.style.transform = "translateY(-96px) scale(.75)";
+          b.style.opacity = "0";
+          later(() => { if (b.parentNode) b.parentNode.removeChild(b); }, 760, token);
+        } else {
+          setExpr("curious", 1500);
+        }
+        say(hit ? "爪子按下去，蝴蝶还是从缝里溜走了。" : "扑了个空，胡须都立起来了。", 2400);
+        later(next, 1300, token);
+      });
+    };
+    next();
+  }
+
   /* 空闲时的小动作：轻轻换个表情、说一句无关紧要的话 */
   function startIdle() {
     stopIdle();
     const tick = () => {
       idleTimer = setTimeout(() => {
         if (!document.hidden && wrap && !wrap.classList.contains("act-sleep")) {
-          const pool = [["idle", "proud", "shy", "mischief", "curious", "laugh", "lick", "sleepy", "eat-meow"]];
-          const pick = pool[0][Math.floor(Math.random() * pool[0].length)];
-          if (pick !== "idle") setExpr(pick, 2400);
-          if (Math.random() < 0.55) say(line("idle"), 3200);
-          wrap.classList.remove("act-breathe");
-          void wrap.offsetWidth;
-          wrap.classList.add("act-breathe");
+          // 只挑温和的表情：不要生气、不要高冷脸；换脸放慢，别一抖一抖的
+          const pool = ["happy", "curious", "laugh", "eat-meow", "shy"];
+          const one = pool[Math.floor(Math.random() * pool.length)];
+          setExpr(one, 5200);
+          if (Math.random() < 0.4) say(line("idle"), 4200);
+          // 花园里偶尔自己去追蝴蝶
+          if (M.world && M.world.current === "garden" && Math.random() < 0.5) chaseButterflies();
         }
         tick();
-      }, 7000 + Math.random() * 6000);
+      }, 16000 + Math.random() * 12000);
     };
     tick();
   }
@@ -259,7 +385,7 @@
     M.save();
     if (!quiet) {
       action("walk", 900);
-      setExpr("proud", 1500);
+      setExpr("curious", 1500);
       say("她走回惯常待的那块地板，趴下来。");
     }
   }
@@ -288,7 +414,7 @@
         if (Math.hypot(e.clientX - sx, e.clientY - sy) < 7) return;
         dragging = true;
         wrap.classList.add("is-dragging");
-        setExpr(pick(["curious", "mischief", "focus"]), 6000);
+        setExpr(pick(["curious", "focus", "happy"]), 6000);
         try { wrap.setPointerCapture(pid); } catch (err) {}
       }
       const w = wr.width, h = wr.height;
@@ -325,7 +451,7 @@
         setExpr(hot.type === "rest" ? "sleepy" : hot.type === "story" ? "shy" : "curious", 2200);
         say(hot.speech || ("她在" + hot.label + "旁边坐下了。"), 3600);
       } else {
-        setExpr(pick(["proud", "laugh", "curious"]), 2000);
+        setExpr(pick(["laugh", "curious", "happy"]), 2000);
         say(M.petLine("idle"), 3000);
       }
     };
@@ -369,6 +495,14 @@
     });
   }
 
+  function applyHead(real) {
+    if (!headEl) return;
+    // 新画的可爱脸是整张图（没有头部裁切层），这些表情下把头部层收起来
+    const isNewFace = /^(charm|tilt|pout|wink|daze)\.png$/i.test((A.states && A.states[real]) || "");
+    headEl.style.display = isNewFace ? "none" : "";
+    if (!isNewFace) headEl.src = headSrc(real);
+  }
+
   function blockClick() { const b = dragBlock; dragBlock = false; return b; }
 
   M.pet = {
@@ -376,14 +510,18 @@
       actor = refs.actor; decoEl = refs.deco; decoTopEl = refs.decoTop; headEl = refs.head;
       sayEl = refs.say; fxF = refs.fx; wrap = refs.wrap;
       preload();
-      if (headEl) headEl.src = headSrc(currentExpr);
+      if (actor) actor.src = baseSrc(currentExpr);
+      applyHead(currentExpr);
       refreshDeco();
       restorePos();
       setupDrag();
+      applyIdleStyle();
       startIdle();
     },
     setExpr, action, say, burst, zzz, refreshDeco, equipToggle,
+    chaseButterflies, stopChase,
     line, blockClick,
+    setIdleStyle, applyIdleStyle, idleStyle,
     resetPos,
     get expression() { return currentExpr; },
     resetIdle: () => { stopIdle(); startIdle(); },
@@ -416,7 +554,7 @@
       action("play", 3000);
       setExpr("act-jump");
       setTimeout(() => { if (wrap && wrap.classList.contains("act-play")) setExpr("act-land"); }, 900);
-      setTimeout(() => { if (wrap && wrap.classList.contains("act-play")) setExpr(pick(["mischief", "laugh"]), 1600); }, 1700);
+      setTimeout(() => { if (wrap && wrap.classList.contains("act-play")) setExpr(pick(["laugh", "happy"]), 1600); }, 1700);
       if (toyImg && fxF) {
         const el = document.createElement("img");
         el.className = "fx toyfly";
