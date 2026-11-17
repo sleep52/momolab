@@ -231,7 +231,7 @@
           </div>
         </div>
       </div>`;
-    footEl.innerHTML = `<span class="play-tip">点没被压住的小猫牌收进槽位 · 三张相同自动消除 · 7 格塞满就输 · 清空整堆就赢 · 道具每局免费 1 次，赢别的小游戏攒库存加次数</span>`;
+    footEl.innerHTML = `<span class="play-tip">点没被压住的小猫牌收进槽位 · 三张相同自动消除 · 7 格塞满就输 · 清空整堆就赢 · 道具用完点按钮玩消消乐赢次数</span>`;
 
     const pile = stageEl.querySelector(".yx-pile");
     const trayEl = stageEl.querySelector(".yx-tray");
@@ -472,9 +472,12 @@
       YX_PROPS.forEach((k) => {
         const btn = stageEl.querySelector(`[data-prop="${k}"]`);
         const left = props[k] + stock[k];
-        btn.disabled = !left;
+        btn.disabled = false;
         btn.classList.toggle("is-stock", !props[k] && stock[k] > 0);
-        btn.title = `本局免费 ${props[k]} 次 + 库存 ${stock[k]} 次 · 赢其他小游戏补库存`;
+        btn.classList.toggle("is-empty", !left);
+        btn.title = left
+          ? `本局免费 ${props[k]} 次 + 库存 ${stock[k]} 次 · 赢其他小游戏补库存`
+          : "次数用完了 · 点我玩消消乐，赢一盘 +1 次";
         btn.querySelector(".yx-pn").textContent = left;
       });
     }
@@ -675,10 +678,229 @@
       M.toast("小猫堆重新摆好了，照样有解");
     }
 
+    /* ---- 道具补给：次数用完点按钮弹消消乐，赢一盘 +1 次 ---- */
+    function openRescue(k) {
+      const COLS = 6, ROWS = 6, TYPES = 5, MOVES = 12, TARGET = 600;
+      let rAlive = true;
+      const rCleanups = [];
+      const rlater = (fn, ms) => { const id = setTimeout(() => { if (rAlive) fn(); }, ms); rCleanups.push(() => clearTimeout(id)); };
+      const ov = document.createElement("div");
+      ov.className = "yx-rescue";
+      ov.innerHTML = `
+        <div class="r-card">
+          <div class="r-head">
+            <div><h3>消消乐补给</h3><p>赢一盘 · ${YX_PROP_NAMES[k]} +1 次</p></div>
+            <button class="icon-btn r-close" aria-label="放弃回去">${icon("close")}</button>
+          </div>
+          <div class="r-hud"><span>分数 <b class="r-score">0</b> / ${TARGET}</span><span>剩余步数 <b class="r-moves">${MOVES}</b></span></div>
+          <div class="r-progress"><i></i></div>
+          <div class="r-grid"></div>
+          <div class="r-foot">
+            <button class="btn ghost r-restart">重开一盘</button>
+            <button class="btn ghost r-quit">回去继续</button>
+          </div>
+          <div class="r-end" hidden></div>
+        </div>`;
+      stageEl.appendChild(ov);
+      cleanups.push(() => { rAlive = false; rCleanups.forEach((fn) => fn()); ov.remove(); });
+      const gridEl = ov.querySelector(".r-grid");
+      const scoreEl = ov.querySelector(".r-score");
+      const movesEl = ov.querySelector(".r-moves");
+      const progEl = ov.querySelector(".r-progress i");
+      const endEl = ov.querySelector(".r-end");
+      let grid = [], sel = -1, busy = true, ended = false, score = 0, moves = MOVES, size = 40;
+      const idx = (c, r) => r * COLS + c;
+      function place(t, i, dy, delay) {
+        const L = (i % COLS) * size, T = ((i / COLS) | 0) * size;
+        t.el.style.width = size + "px"; t.el.style.height = size + "px";
+        t.el.style.left = L + "px"; t.el.style.top = T + "px";
+        if (dy) t.el.animate([{ transform: `translateY(${dy}px)` }, { transform: "translateY(0)" }], { duration: 240, delay: delay || 0, easing: "cubic-bezier(.3,.8,.3,1)", fill: "backwards" });
+      }
+      function flip(t, i, fromI, delay) {
+        const dx = ((fromI % COLS) - (i % COLS)) * size;
+        const dy = (((fromI / COLS) | 0) - ((i / COLS) | 0)) * size;
+        place(t, i);
+        if (dx || dy) t.el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "translate(0,0)" }], { duration: 170, delay: delay || 0, easing: "ease", fill: "backwards" });
+      }
+      function makeTile(type, i, dy, delay) {
+        const el = document.createElement("button");
+        el.className = "r-cell yx-t" + type;
+        el.innerHTML = `<span class="yx-face"><img src="${YX_IMGS[type]}" alt="" draggable="false"></span>`;
+        const t = { type, el };
+        el.addEventListener("click", () => onCell(grid.indexOf(t)));
+        gridEl.appendChild(el);
+        place(t, i, dy, delay);
+        return t;
+      }
+      function matches() {
+        const out = new Set();
+        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS - 2; c++) {
+          const a = grid[idx(c, r)];
+          if (a && grid[idx(c + 1, r)] && grid[idx(c + 2, r)] && grid[idx(c + 1, r)].type === a.type && grid[idx(c + 2, r)].type === a.type) { out.add(idx(c, r)); out.add(idx(c + 1, r)); out.add(idx(c + 2, r)); }
+        }
+        for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS - 2; r++) {
+          const a = grid[idx(c, r)];
+          if (a && grid[idx(c, r + 1)] && grid[idx(c, r + 2)] && grid[idx(c, r + 1)].type === a.type && grid[idx(c, r + 2)].type === a.type) { out.add(idx(c, r)); out.add(idx(c, r + 1)); out.add(idx(c, r + 2)); }
+        }
+        return out;
+      }
+      function hasMove() {
+        for (let i = 0; i < grid.length; i++) {
+          const c = i % COLS, r = (i / COLS) | 0;
+          const js = [];
+          if (c < COLS - 1) js.push(i + 1);
+          if (r < ROWS - 1) js.push(i + COLS);
+          for (const j of js) {
+            [grid[i], grid[j]] = [grid[j], grid[i]];
+            const ok = matches().size > 0;
+            [grid[i], grid[j]] = [grid[j], grid[i]];
+            if (ok) return true;
+          }
+        }
+        return false;
+      }
+      function fill() {
+        for (;;) {
+          gridEl.innerHTML = "";
+          grid = new Array(COLS * ROWS).fill(null);
+          for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+            let ty;
+            do { ty = (Math.random() * TYPES) | 0; }
+            while ((c >= 2 && grid[idx(c - 1, r)].type === ty && grid[idx(c - 2, r)].type === ty) || (r >= 2 && grid[idx(c, r - 1)].type === ty && grid[idx(c, r - 2)].type === ty));
+            grid[idx(c, r)] = makeTile(ty, idx(c, r), -(r + 1) * size - 40, r * 40 + c * 18);
+          }
+          if (hasMove()) break;
+        }
+      }
+      function hud() {
+        scoreEl.textContent = score;
+        movesEl.textContent = moves;
+        progEl.style.width = Math.min(100, (score / TARGET) * 100) + "%";
+      }
+      function onCell(i) {
+        if (busy || ended || i < 0 || !grid[i]) return;
+        if (sel === i) { grid[i].el.classList.remove("is-sel"); sel = -1; return; }
+        if (sel >= 0) {
+          const c1 = sel % COLS, r1 = (sel / COLS) | 0, c2 = i % COLS, r2 = (i / COLS) | 0;
+          if (Math.abs(c1 - c2) + Math.abs(r1 - r2) === 1) {
+            const a = sel; sel = -1;
+            grid[a].el.classList.remove("is-sel");
+            trySwap(a, i);
+            return;
+          }
+          grid[sel].el.classList.remove("is-sel");
+        }
+        sel = i; grid[i].el.classList.add("is-sel"); M.audio.sfx("tap");
+      }
+      function trySwap(a, b) {
+        busy = true;
+        const ta = grid[a], tb = grid[b];
+        grid[a] = tb; grid[b] = ta;
+        flip(tb, a, b); flip(ta, b, a);
+        M.audio.sfx("tap");
+        rlater(() => {
+          if (matches().size) { moves -= 1; hud(); resolve(); }
+          else {
+            grid[a] = ta; grid[b] = tb;
+            flip(ta, a, b); flip(tb, b, a);
+            M.audio.sfx("soft");
+            rlater(() => { busy = false; }, 180);
+          }
+        }, 180);
+      }
+      function resolve() {
+        let step = 0, m = matches();
+        while (m.size) {
+          const gain = m.size * 10 * (step + 1);
+          score += gain;
+          let firstR = null;
+          m.forEach((i) => {
+            const t = grid[i]; grid[i] = null;
+            const r = t.el.getBoundingClientRect();
+            if (!firstR) firstR = r;
+            burst(r);
+            t.el.classList.add("is-pop");
+            const el = t.el;
+            rlater(() => el.remove(), 340 + step * 180);
+          });
+          floatText(firstR, `+${gain}${step ? ` 连消×${step + 1}` : ""}`, step > 0);
+          M.audio.sfx(step ? "happy" : "coin");
+          for (let c = 0; c < COLS; c++) {
+            let write = ROWS - 1;
+            for (let r = ROWS - 1; r >= 0; r--) {
+              const t = grid[idx(c, r)];
+              if (!t) continue;
+              if (write !== r) {
+                grid[idx(c, write)] = t; grid[idx(c, r)] = null;
+                flip(t, idx(c, write), idx(c, r), step * 180);
+              }
+              write--;
+            }
+            let spawn = 1;
+            for (let r = write; r >= 0; r--) {
+              const ty = (Math.random() * TYPES) | 0;
+              grid[idx(c, r)] = makeTile(ty, idx(c, r), -spawn * size - 20, step * 180);
+              spawn++;
+            }
+          }
+          step++;
+          m = matches();
+        }
+        hud();
+        rlater(() => {
+          busy = false;
+          if (score >= TARGET) return end(true);
+          if (moves <= 0) return end(false);
+          if (!hasMove()) { M.toast("没有能消的了，重新摆一盘"); fill(); }
+        }, step * 180 + 260);
+      }
+      function end(win) {
+        ended = true; busy = true;
+        if (win) {
+          props[k] += 1; syncProps();
+          M.toast(`${YX_PROP_NAMES[k]} +1 次，已装回道具栏`, "gold");
+          M.audio.sfx("success");
+        } else M.audio.sfx("fail");
+        endEl.hidden = false;
+        endEl.innerHTML = win
+          ? `<h4>消消乐赢了！</h4><p>${YX_PROP_NAMES[k]} +1 次，回去接着用</p><div class="r-end-acts"><button class="btn primary r-back">回去继续</button></div>`
+          : `<h4>步数用完了</h4><p>还差 ${Math.max(0, TARGET - score)} 分，再试一盘？</p><div class="r-end-acts"><button class="btn primary r-again">再来一盘</button><button class="btn ghost r-back">回去继续</button></div>`;
+      }
+      function reset() {
+        ended = false; endEl.hidden = true;
+        score = 0; moves = MOVES; sel = -1; busy = true;
+        fill(); hud();
+        rlater(() => { busy = false; }, 500);
+      }
+      function close() {
+        rAlive = false; rCleanups.forEach((fn) => fn());
+        ov.remove(); M.audio.sfx("close");
+      }
+      ov.querySelector(".r-close").addEventListener("click", close);
+      ov.querySelector(".r-quit").addEventListener("click", close);
+      ov.querySelector(".r-restart").addEventListener("click", reset);
+      ov.addEventListener("click", (e) => {
+        if (e.target.closest(".r-back")) close();
+        else if (e.target.closest(".r-again")) reset();
+      });
+      const relayout = () => {
+        size = Math.floor(gridEl.clientWidth / COLS);
+        gridEl.style.height = size * ROWS + "px";
+        grid.forEach((t, i) => { if (t) place(t, i); });
+      };
+      window.addEventListener("resize", relayout);
+      rCleanups.push(() => window.removeEventListener("resize", relayout));
+      size = Math.floor(gridEl.clientWidth / COLS);
+      gridEl.style.height = size * ROWS + "px";
+      fill(); hud();
+      rlater(() => { busy = false; }, 500);
+      M.audio.sfx("open");
+    }
+
     /* ---- 接线 ---- */
-    stageEl.querySelector('[data-prop="undo"]').addEventListener("click", doUndo);
-    stageEl.querySelector('[data-prop="out"]').addEventListener("click", doOut);
-    stageEl.querySelector('[data-prop="shuffle"]').addEventListener("click", doShuffle);
+    stageEl.querySelector('[data-prop="undo"]').addEventListener("click", () => { if (props.undo + stock.undo) doUndo(); else openRescue("undo"); });
+    stageEl.querySelector('[data-prop="out"]').addEventListener("click", () => { if (props.out + stock.out) doOut(); else openRescue("out"); });
+    stageEl.querySelector('[data-prop="shuffle"]').addEventListener("click", () => { if (props.shuffle + stock.shuffle) doShuffle(); else openRescue("shuffle"); });
     stageEl.querySelector('[data-prop="restart"]').addEventListener("click", () => { M.audio.sfx("tap"); start(currentId); });
     stageEl.querySelectorAll("[data-diff]").forEach((btn) => {
       btn.addEventListener("click", () => {
