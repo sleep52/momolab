@@ -145,6 +145,12 @@
     normal: { name: "进阶", types: 6, counts: [20, 16, 12, 6], bonus: 180 },
     hell: { name: "地狱", types: 8, counts: [26, 20, 15, 7, 4], bonus: 260 }
   };
+  const YX_ORDER = ["easy", "normal", "hell"];
+  const yxUnlocked = (k) => {
+    const i = YX_ORDER.indexOf(k);
+    if (i <= 0) return true;
+    return !!(((M.state.flags || {}).yxClear) || {})[YX_ORDER[i - 1]];
+  };
   const YX_ICONS = {
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.6 5.8 4.2 10.2l4.4 4.4"/><path d="M4.2 10.2h9.2a5.9 5.9 0 0 1 0 11.8H8.6"/></svg>',
     out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.2V4.6"/><path d="M7.8 8.8 12 4.6l4.2 4.2"/><path d="M5 13v5.2a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V13"/></svg>',
@@ -154,8 +160,8 @@
 
   function gameSnack() {
     let diffKey = (M.state.flags && M.state.flags.yxDiff) || "normal";
-    const hellLocked = !((M.state.flags || {}).yxClear || {}).easy;
-    if (diffKey === "hell" && hellLocked) diffKey = "easy";
+    if (!YX_DIFF[diffKey]) diffKey = "normal";
+    while (!yxUnlocked(diffKey)) diffKey = YX_ORDER[YX_ORDER.indexOf(diffKey) - 1];
     const D = YX_DIFF[diffKey] || YX_DIFF.normal;
     let roundAlive = true;
     cleanups.push(() => { roundAlive = false; });
@@ -167,8 +173,9 @@
         <div class="yx-board">
           <div class="yx-diff" role="group" aria-label="难度">
             ${Object.keys(YX_DIFF).map((k) => {
-              const lock = k === "hell" && hellLocked;
-              return `<button class="yx-diff-btn ${k === diffKey ? "is-on" : ""}${lock ? " is-locked" : ""}" data-diff="${k}"${lock ? ' aria-disabled="true" title="通关入门后解锁"' : ""}>${lock ? YX_LOCK : ""}${YX_DIFF[k].name}</button>`;
+              const lock = !yxUnlocked(k);
+              const lockAttr = lock ? ` aria-disabled="true" title="通关${YX_DIFF[YX_ORDER[YX_ORDER.indexOf(k) - 1]].name}后解锁"` : "";
+              return `<button class="yx-diff-btn ${k === diffKey ? "is-on" : ""}${lock ? " is-locked" : ""}" data-diff="${k}"${lockAttr}>${lock ? YX_LOCK : ""}${YX_DIFF[k].name}</button>`;
             }).join("")}
           </div>
           <div class="yx-pile"></div>
@@ -443,14 +450,16 @@
         score += D.bonus + propsLeft * 25;
         const flags = (M.state.flags = M.state.flags || {});
         const clear = (flags.yxClear = flags.yxClear || {});
-        const firstEasy = diffKey === "easy" && !clear.easy;
+        const nextKey = YX_ORDER[YX_ORDER.indexOf(diffKey) + 1];
+        const firstClear = !clear[diffKey];
         clear[diffKey] = true;
         M.save();
-        if (firstEasy) setTimeout(() => M.toast("地狱难度解锁了，敢试试吗？", "gold"), 1100);
+        const unlockedNext = firstClear && nextKey;
+        if (unlockedNext) setTimeout(() => M.toast(`${YX_DIFF[nextKey].name}难度解锁了，敢试试吗？`, "gold"), 1100);
         later(() => finish({
           win: true,
           title: "小猫堆清空了！",
-          subtitle: `${D.name} · 消了 ${triples} 组 · 用时 ${secs} 秒${propsLeft ? " · 道具剩余加成" : ""}${firstEasy ? " · 地狱已解锁" : ""}`,
+          subtitle: `${D.name} · 消了 ${triples} 组 · 用时 ${secs} 秒${propsLeft ? " · 道具剩余加成" : ""}${unlockedNext ? ` · ${YX_DIFF[nextKey].name}已解锁` : ""}`,
           score
         }), 420);
       } else if (!left && (tray.length || shelf.length) && !endSaid) {
@@ -631,9 +640,9 @@
       btn.addEventListener("click", () => {
         const k = btn.getAttribute("data-diff");
         if (k === diffKey) return;
-        if (k === "hell" && !((M.state.flags || {}).yxClear || {}).easy) {
+        if (!yxUnlocked(k)) {
           shake(btn); M.audio.sfx("soft");
-          M.toast("先通关「入门」，才能挑战地狱", "warn");
+          M.toast(`先通关「${YX_DIFF[YX_ORDER[YX_ORDER.indexOf(k) - 1]].name}」，才能挑战${YX_DIFF[k].name}`, "warn");
           return;
         }
         M.state.flags = M.state.flags || {};
